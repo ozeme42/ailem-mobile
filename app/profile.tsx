@@ -1,4 +1,3 @@
-// FORCE_RELOAD_TIMESTAMP=639189374255600887
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';

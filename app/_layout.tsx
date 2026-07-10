@@ -2,7 +2,10 @@ import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { Platform, StyleSheet as RNStyleSheet } from 'react-native';
+import { Appearance, Platform, StyleSheet as RNStyleSheet } from 'react-native';
+import { useColorScheme as useNativeWindColorScheme } from 'nativewind';
+import { StatusBar } from 'expo-status-bar';
+import * as Device from 'expo-device';
 import 'react-native-reanimated';
 import './global.css';
 import { AuthProvider } from '../context/auth-context';
@@ -29,6 +32,14 @@ if (Platform.OS === 'web') {
     }
   }
 }
+
+let ScreenOrientation: any;
+try {
+  ScreenOrientation = require('expo-screen-orientation');
+} catch (e) {
+  console.warn('ScreenOrientation module is not available');
+}
+
 export {
   // Catch any errors thrown by the Layout component.
   ErrorBoundary,
@@ -67,22 +78,10 @@ export default function RootLayout() {
   return <RootLayoutNav />;
 }
 
-import { Appearance } from 'react-native';
-import { useColorScheme as useNativeWindColorScheme } from 'nativewind';
-import { StatusBar } from 'expo-status-bar';
-import * as Device from 'expo-device';
-
-let ScreenOrientation: any;
-try {
-  ScreenOrientation = require('expo-screen-orientation');
-} catch (e) {
-  console.warn('ScreenOrientation module is not available');
-}
-
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const { colorScheme: nwColorScheme, setColorScheme: setNwColorScheme } = useNativeWindColorScheme();
-  
+
   // Manage orientation: unlock for tablets so they can rotate, lock to portrait for phones
   useEffect(() => {
     async function handleTabletOrientation() {

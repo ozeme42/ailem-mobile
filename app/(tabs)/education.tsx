@@ -1,4 +1,3 @@
-// FORCE_RELOAD_TIMESTAMP=639189393801622631
 import { 
   View, 
   Text, 

@@ -481,7 +481,7 @@ export default function BookDetailScreen() {
       const testOrderMap = new Map<string, number>();
       book?.subjects?.forEach(s => {
         s.topics?.forEach(t => {
-          const tTests = bookTests.filter(test => test.subjectId === s.id && test.topicId === t.id);
+          const tTests = tests.filter(test => test.subjectId === s.id && test.topicId === t.id);
           tTests.forEach(test => {
             testOrderMap.set(test.id, orderCounter++);
           });
