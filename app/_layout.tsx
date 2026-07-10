@@ -1,6 +1,3 @@
-// FORCE_RELOAD_TIMESTAMP=639189464631202487
-// FORCE_RELOAD_TIMESTAMP=639189457796044634
-// FORCE_RELOAD_TIMESTAMP=639189403304411124
 import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -12,6 +9,7 @@ import { AuthProvider } from '../context/auth-context';
 import { useColorScheme } from '@/components/useColorScheme';
 import { StyleSheet } from 'nativewind';
 import { registerForPushNotificationsAsync } from '../lib/notificationService';
+import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 
 // NativeWind v4 Web dark mode workaround: ensure the runtime detects class-based dark mode
 // Only apply on web and with extra safety checks to prevent startup crashes on mobile
@@ -45,6 +43,8 @@ export const unstable_settings = {
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  useFrameworkReady();
+
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
