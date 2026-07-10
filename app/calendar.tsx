@@ -20,7 +20,8 @@ import {
   addCalendarEvent, 
   updateCalendarEvent, 
   deleteCalendarEvent,
-  onBillsUpdate
+  onBillsUpdate,
+  payBill
 } from '../lib/dataService';
 import { CalendarEvent, Bill } from '../lib/data';
 import { 

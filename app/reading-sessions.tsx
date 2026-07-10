@@ -7,18 +7,16 @@ import { BookOpenCheck, ChevronLeft, Clock, Trash2 } from 'lucide-react-native';
 import { useRouter, Stack } from 'expo-router';
 import { format, parseISO } from 'date-fns';
 import { tr } from 'date-fns/locale';
-import { useAuth } from '../context/auth-context';
 
 export default function ReadingSessionsScreen() {
   const [sessions, setSessions] = useState<ReadingSession[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
-  const { familyId } = useAuth();
 
   useEffect(() => {
     let unsubscribe: any;
     try {
-      unsubscribe = onReadingSessionsUpdate(familyId || '', (data: ReadingSession[]) => {
+      unsubscribe = onReadingSessionsUpdate(familyId, (data: ReadingSession[]) => {
         setSessions(data);
         setLoading(false);
       });
