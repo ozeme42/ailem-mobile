@@ -1,12 +1,9 @@
+import { Platform } from 'react-native';
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-// @ts-ignore
-import { initializeAuth, getReactNativePersistence, Auth } from "firebase/auth";
+import { getAuth, browserLocalPersistence, Auth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// Firebase config - values are hardcoded to ensure they are available in release builds
-// where EXPO_PUBLIC_* env vars may not be embedded correctly via Gradle
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "AIzaSyCvz2ukMyhGT_JfAf-vD5GEZsUxIcu0qpY",
   authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || "ailem-app.firebaseapp.com",
@@ -19,16 +16,27 @@ const firebaseConfig = {
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 
-// Use getReactNativePersistence to ensure Auth state is persisted correctly on mobile
 let auth: Auth;
 try {
-    auth = initializeAuth(app, {
-      persistence: getReactNativePersistence(AsyncStorage)
+  auth = getAuth(app);
+  // Only set persistence in browser environment (not during SSR)
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+    import('firebase/auth').then(({ browserLocalPersistence, setPersistence }) => {
+      setPersistence(auth, browserLocalPersistence).catch(() => {});
     });
+  } else if (Platform.OS !== 'web') {
+    const AsyncStorage = require("@react-native-async-storage/async-storage").default;
+    const { getReactNativePersistence, initializeAuth } = require("firebase/auth");
+    try {
+      initializeAuth(app, {
+        persistence: getReactNativePersistence(AsyncStorage),
+      });
+    } catch (e) {
+      // Auth already initialized
+    }
+  }
 } catch (error) {
-    // Auth might already be initialized if hot-reloading
-    const { getAuth } = require("firebase/auth");
-    auth = getAuth(app);
+  console.warn('Firebase auth initialization error:', error);
 }
 
 const storage = getStorage(app);

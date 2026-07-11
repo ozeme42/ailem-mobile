@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User as FirebaseUser, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, onSnapshot, Unsubscribe } from 'firebase/firestore';
-import { useRouter, useSegments } from 'expo-router';
 import { auth, db } from '../lib/firebase';
 import type { FamilyMember } from '../lib/data';
 
@@ -24,7 +23,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [familyName, setFamilyName] = useState<string | null>(null);
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   useEffect(() => {
     let familyUnsubscribe: Unsubscribe | null = null;
     let userUnsubscribe: Unsubscribe | null = null;
@@ -103,29 +102,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider value={{ user, familyId, familyName, familyMembers, loading, login, signup, logout }}>
-      <AuthGuard>{children}</AuthGuard>
+      {children}
     </AuthContext.Provider>
   );
-}
-
-function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
-  const segments = useSegments();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (loading) return;
-
-    const inAuthGroup = segments[0] === 'login' || segments[0] === 'signup';
-
-    if (!user && !inAuthGroup) {
-      router.replace('/login');
-    } else if (user && inAuthGroup) {
-      router.replace('/');
-    }
-  }, [user, loading, segments]);
-
-  return <>{children}</>;
 }
 
 export function useAuth() {

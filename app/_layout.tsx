@@ -2,32 +2,44 @@ import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { Platform } from 'react-native';
-import { useColorScheme as useNativeWindColorScheme, StyleSheet } from 'nativewind';
-import { StatusBar } from 'expo-status-bar';
-import * as Device from 'expo-device';
+import { Platform, StyleSheet as RNStyleSheet } from 'react-native';
 import 'react-native-reanimated';
 import './global.css';
 import { AuthProvider } from '../context/auth-context';
 import { useColorScheme } from '@/components/useColorScheme';
+import { StyleSheet } from 'nativewind';
 import { registerForPushNotificationsAsync } from '../lib/notificationService';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 
-let ScreenOrientation: any;
-try {
-  ScreenOrientation = require('expo-screen-orientation');
-} catch (e) {
-  ScreenOrientation = null;
+// NativeWind v4 Web dark mode workaround: ensure the runtime detects class-based dark mode
+// Only apply on web and with extra safety checks to prevent startup crashes on mobile
+if (Platform.OS === 'web') {
+  const stylesheetAny = StyleSheet as any;
+  if (stylesheetAny && typeof stylesheetAny.getFlag === 'function') {
+    const originalGetFlag = stylesheetAny.getFlag;
+    try {
+      stylesheetAny.getFlag = (name: string) => {
+        if (name === 'darkMode') {
+          return 'class dark';
+        }
+        return originalGetFlag.call(stylesheetAny, name);
+      };
+    } catch (e) {
+      console.warn('NativeWind: Could not patch StyleSheet.getFlag', e);
+    }
+  }
 }
-
 export {
+  // Catch any errors thrown by the Layout component.
   ErrorBoundary,
 } from 'expo-router';
 
 export const unstable_settings = {
+  // Ensure that reloading on `/modal` keeps a back button present.
   initialRouteName: '(tabs)',
 };
 
+// Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
@@ -37,6 +49,7 @@ export default function RootLayout() {
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
 
+  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
     if (error) throw error;
   }, [error]);
@@ -54,10 +67,23 @@ export default function RootLayout() {
   return <RootLayoutNav />;
 }
 
+import { Appearance } from 'react-native';
+import { useColorScheme as useNativeWindColorScheme } from 'nativewind';
+import { StatusBar } from 'expo-status-bar';
+import * as Device from 'expo-device';
+
+let ScreenOrientation: any;
+try {
+  ScreenOrientation = require('expo-screen-orientation');
+} catch (e) {
+  console.warn('ScreenOrientation module is not available');
+}
+
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const { colorScheme: nwColorScheme, setColorScheme: setNwColorScheme } = useNativeWindColorScheme();
-
+  
+  // Manage orientation: unlock for tablets so they can rotate, lock to portrait for phones
   useEffect(() => {
     async function handleTabletOrientation() {
       if (!ScreenOrientation || !ScreenOrientation.lockAsync) return;
@@ -69,18 +95,20 @@ function RootLayoutNav() {
           await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT);
         }
       } catch (err) {
-        // Orientation lock not supported on this platform
+        console.warn('Error configuring orientation:', err);
       }
     }
     handleTabletOrientation();
   }, []);
 
+  // Force light mode by default unless user toggles
   useEffect(() => {
     if (nwColorScheme === 'dark') {
       setNwColorScheme('light');
     }
   }, []);
 
+  // Request notification permissions
   useEffect(() => {
     registerForPushNotificationsAsync();
   }, []);
