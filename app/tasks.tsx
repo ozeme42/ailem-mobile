@@ -148,39 +148,58 @@ export default function TasksScreen() {
     };
   }, []);
 
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date>(new Date());
+  const calendarDays = useMemo(() => Array.from({ length: 7 }).map((_, i) => addDays(new Date(), i)), []);
+
   const getMember = (id: string) => familyMembers.find(m => m.id === id);
-  const todayStr = format(new Date(), 'yyyy-MM-dd');
 
   const modTasks = useMemo(() => {
     const list: any[] = [];
     const q = searchQuery.toLowerCase();
+    const selectedDateStr = format(selectedCalendarDate, 'yyyy-MM-dd');
+    
     studyAssignments.forEach(x => {
       if (!x.studentId || (selectedMemberId && x.studentId !== selectedMemberId)) return;
       const assignee = getMember(x.studentId);
       if (!x.topic.toLowerCase().includes(q) && !assignee?.name.toLowerCase().includes(q)) return;
-      list.push({ id: `edu-${x.id}`, title: `${x.subject} - ${x.topic}`, module: 'Egitim', assigneeId: x.studentId, isCompleted: x.status === 'completed', icon: BookOpen, onToggle: async (c: boolean) => { await updateStudyAssignment(x.id, { status: c ? 'completed' : 'assigned' }); } });
+      
+      let isForDay = false;
+      let dObj = new Date(x.dueDate || new Date());
+      let sObj = new Date(x.startDate || dObj);
+      const cTime = new Date(selectedCalendarDate).setHours(0,0,0,0);
+      const sTime = sObj.setHours(0,0,0,0);
+      const isDayToday = isSameDay(selectedCalendarDate, new Date());
+      isForDay = isDayToday ? sTime <= cTime : sTime === cTime;
+      
+      if (!isForDay && x.status !== 'completed') return;
+      if (x.status === 'completed' && (!x.completedAt || !isSameDay(new Date(x.completedAt as string), selectedCalendarDate))) return;
+
+      list.push({ id: `edu-${x.id}`, title: `${x.subject} - ${x.topic}`, module: 'Egitim', assigneeId: x.studentId, isCompleted: x.status === 'completed', icon: BookOpen, onToggle: async (c: boolean) => { await updateStudyAssignment(x.id, { status: c ? 'completed' : 'assigned', completedAt: c ? new Date().toISOString() : undefined }); } });
     });
+    
     memorizationItems.forEach(item => {
       familyMembers.forEach(m => {
         if (selectedMemberId && m.id !== selectedMemberId) return;
         const prog = memorizationProgress.find(p => p.itemId === item.id && p.memberId === m.id);
         if (!prog) return;
         if (!item.title.toLowerCase().includes(q) && !m.name.toLowerCase().includes(q)) return;
+        
         list.push({ id: `mem-${item.id}-${m.id}`, title: item.title, module: 'Ezber', assigneeId: m.id, isCompleted: prog.completed, icon: BookOpen, onToggle: async (c: boolean) => { await updateMemorizationProgress(item.id, m.id, c); } });
       });
     });
+    
     const PRAYERS = ['Sabah', 'Ogle', 'Ikindi', 'Aksam', 'Yatsi'];
     familyMembers.forEach(m => {
       if (!m.role.includes('Çocuk') && !m.role.includes('Cocuk')) return;
       if (selectedMemberId && m.id !== selectedMemberId) return;
       const pdata = prayerProgress.find(p => p.memberId === m.id);
-      const completedList: string[] = pdata?.completions?.[todayStr] || [];
+      const completedList: string[] = pdata?.completions?.[selectedDateStr] || [];
       PRAYERS.forEach(pr => {
-        list.push({ id: `pr-${m.id}-${pr}`, title: `${pr} Namazı`, module: 'Namaz', assigneeId: m.id, isCompleted: completedList.includes(pr), icon: Target, onToggle: async (c: boolean) => { const nextList = c ? [...completedList, pr] : completedList.filter(x => x !== pr); await updatePrayerProgress(m.id, { ...(pdata?.completions || {}), [todayStr]: nextList }); } });
+        list.push({ id: `pr-${m.id}-${pr}`, title: `${pr} Namazı`, module: 'Namaz', assigneeId: m.id, isCompleted: completedList.includes(pr), icon: Target, onToggle: async (c: boolean) => { const nextList = c ? [...completedList, pr] : completedList.filter(x => x !== pr); await updatePrayerProgress(m.id, { ...(pdata?.completions || {}), [selectedDateStr]: nextList }); } });
       });
     });
     return list;
-  }, [studyAssignments, memorizationItems, memorizationProgress, prayerProgress, familyMembers, searchQuery, selectedMemberId]);
+  }, [studyAssignments, memorizationItems, memorizationProgress, prayerProgress, familyMembers, searchQuery, selectedMemberId, selectedCalendarDate]);
 
   const { pt, ct, habitsList, stats } = useMemo(() => {
     const q = searchQuery.toLowerCase();
@@ -188,13 +207,30 @@ export default function TasksScreen() {
       if (selectedMemberId && t.assigneeId !== selectedMemberId) return false;
       return t.title.toLowerCase().includes(q) || getMember(t.assigneeId)?.name.toLowerCase().includes(q);
     });
-    const pt = filtered.filter(t => !t.isRecurring && !t.completed);
-    const ct = filtered.filter(t => !t.isRecurring && t.completed);
+    
+    const pt = filtered.filter(t => {
+      if (t.isRecurring || t.completed) return false;
+      if (!t.dueDate) return true;
+      const dTime = new Date(t.dueDate).setHours(0,0,0,0);
+      const cTime = new Date(selectedCalendarDate).setHours(0,0,0,0);
+      const isDayToday = isSameDay(selectedCalendarDate, new Date());
+      return isDayToday ? dTime <= cTime : dTime === cTime;
+    });
+    
+    const ct = filtered.filter(t => {
+      if (t.isRecurring || !t.completed) return false;
+      if (!t.dueDate) return true;
+      const dTime = new Date(t.dueDate).setHours(0,0,0,0);
+      const cTime = new Date(selectedCalendarDate).setHours(0,0,0,0);
+      const isDayToday = isSameDay(selectedCalendarDate, new Date());
+      return isDayToday ? dTime <= cTime : dTime === cTime;
+    });
+    
     const habitsList = filtered.filter(t => t.isRecurring);
     const activeMemberXp = selectedMemberId ? getMember(selectedMemberId)?.xp || 0 : (user ? getMember(user.uid)?.xp || 0 : 0);
     const pendingCount = pt.length + modTasks.filter(t => !t.isCompleted).length;
     return { pt, ct, habitsList, stats: { pending: pendingCount, habits: habitsList.length, xp: activeMemberXp } };
-  }, [tasks, modTasks, selectedMemberId, searchQuery, user, familyMembers]);
+  }, [tasks, modTasks, selectedMemberId, searchQuery, user, familyMembers, selectedCalendarDate]);
 
   const toggleGroup = (key: 'personal' | 'education' | 'memorization' | 'namaz') => {
     setOpenGroups(prev => ({ ...prev, [key]: !prev[key] }));
@@ -461,6 +497,63 @@ export default function TasksScreen() {
         {/* ── TAB 1: TASKS ── */}
         {tab === 'tasks' && (
           <View style={{ gap: 4 }}>
+            
+            {/* ── Calendar Strip ── */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 16, paddingTop: 4 }}>
+              {calendarDays.map((day, i) => {
+                const active = isSameDay(selectedCalendarDate, day);
+                const isDayToday = isSameDay(new Date(), day);
+                
+                return (
+                  <TouchableOpacity
+                    key={i}
+                    onPress={() => setSelectedCalendarDate(day)}
+                    activeOpacity={0.8}
+                  >
+                    {active ? (
+                      <LinearGradient
+                        colors={['#4f46e5', '#7c3aed']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 0, y: 1 }}
+                        style={{
+                          width: 62, height: 80, borderRadius: 22,
+                          alignItems: 'center', justifyContent: 'center',
+                          shadowColor: '#6366f1', shadowOffset: { width: 0, height: 8 },
+                          shadowOpacity: 0.55, shadowRadius: 16, elevation: 10,
+                        }}
+                      >
+                        <Text style={{ fontSize: 10, fontWeight: '800', color: 'rgba(255,255,255,0.75)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                          {format(day, 'eee', { locale: tr })}
+                        </Text>
+                        <Text style={{ fontSize: 22, fontWeight: '900', color: 'white', marginTop: 2 }}>
+                          {format(day, 'd')}
+                        </Text>
+                      </LinearGradient>
+                    ) : (
+                      <View
+                        style={{
+                          width: 62, height: 80, borderRadius: 22,
+                          backgroundColor: isDayToday 
+                            ? (isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.08)')
+                            : cardBg,
+                          borderWidth: isDayToday ? 1.5 : 1,
+                          borderColor: isDayToday ? 'rgba(99,102,241,0.4)' : cardBorder,
+                          alignItems: 'center', justifyContent: 'center',
+                        }}
+                      >
+                        <Text style={{ fontSize: 10, fontWeight: '800', color: isDayToday ? '#6366f1' : textMuted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                          {format(day, 'eee', { locale: tr })}
+                        </Text>
+                        <Text style={{ fontSize: 20, fontWeight: '900', color: isDayToday ? '#6366f1' : textPrimary, marginTop: 2 }}>
+                          {format(day, 'd')}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
             {/* Sub-filter */}
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
               {[
