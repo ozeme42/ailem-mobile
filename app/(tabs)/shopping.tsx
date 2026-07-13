@@ -1,62 +1,79 @@
-import { View, Text, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Modal, Alert, StyleSheet, KeyboardAvoidingView, Platform, NativeModules, useWindowDimensions, useColorScheme } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useEffect, useState, useMemo } from 'react';
-import { 
-  onShoppingListsUpdate, addShoppingList, updateShoppingList, deleteShoppingList, 
-  addShoppingListItemToList, moveItemToBought, moveItemToPending, 
-  deleteShoppingListItemFromList, toggleShoppingListItemStatusInList
-} from '../../lib/dataService';
-import { ShoppingList, ShoppingItem } from '../../lib/data';
-import { 
-  ShoppingCart, Home, ListChecks, Cake, Notebook, ShoppingBag, 
-  Plus, ChevronLeft, Trash2, CheckCircle2, Circle, MoreVertical, 
-  Apple, Beef, Milk, Wheat, Coffee, Package, Droplets, Baby, Star, X,
-  Edit2, Search, ChevronRight, Mic, Sparkles, ChevronUp, ChevronDown, Check
-} from 'lucide-react-native';
-import { useRouter, Stack } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Stack, useRouter } from 'expo-router';
+import {
+    Apple,
+    ArrowLeft,
+    Baby,
+    Beef,
+    Cake,
+    Check,
+    CheckCircle2,
+    ChevronDown,
+    ChevronRight,
+    ChevronUp,
+    Coffee,
+    Droplets,
+    Edit2,
+    Home, ListChecks,
+    Mic,
+    Milk,
+    MoreVertical,
+    Notebook,
+    Package,
+    Plus,
+    Search,
+    ShoppingBag,
+    ShoppingCart,
+    Star,
+    Trash2,
+    Wheat,
+    X
+} from 'lucide-react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, NativeModules, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { ShoppingItem, ShoppingList } from '../../lib/data';
+import {
+    addShoppingList,
+    addShoppingListItemToList,
+    deleteShoppingList,
+    deleteShoppingListItemFromList,
+    moveItemToBought, moveItemToPending,
+    onShoppingListsUpdate,
+    updateShoppingList
+} from '../../lib/dataService';
 
 // ─── CATEGORY CONFIG ──────────────────────────────────────────────────────────
 const CATEGORY_CONFIG: Record<string, {
   icon: any;
   color: string;
   bgColor: string;
-  borderColor: string;
   lightBg: string;
-  lightBorder: string;
   cardBg: string;
   cardText: string;
-  checkBg: string;
+  solidBg: string;
+  solidText: string;
+  lightBorder: string;
 }> = {
-  'Meyve ve Sebze':       { icon: Apple,       color: '#27ae60', bgColor: '#e8f8f5', borderColor: '#d1f2eb', lightBg: '#e8f8f5', lightBorder: '#d1f2eb', cardBg: '#f4fbf7', cardText: '#1b663e', checkBg: '#27ae60' },
-  'Et ve Tavuk Ürünleri': { icon: Beef,        color: '#c0392b', bgColor: '#fadbd8', borderColor: '#f5b7b1', lightBg: '#fadbd8', lightBorder: '#f5b7b1', cardBg: '#fdf3f2', cardText: '#87281e', checkBg: '#c0392b' },
-  'Süt Ürünleri':         { icon: Milk,        color: '#2980b9', bgColor: '#ebf5fb', borderColor: '#d4e6f1', lightBg: '#ebf5fb', lightBorder: '#d4e6f1', cardBg: '#f2f8fc', cardText: '#1a5276', checkBg: '#2980b9' },
-  'Unlu Mamüller':        { icon: Wheat,       color: '#d35400', bgColor: '#fdebd0', borderColor: '#f9e79f', lightBg: '#fdebd0', lightBorder: '#f9e79f', cardBg: '#fdf9f2', cardText: '#873600', checkBg: '#d35400' },
-  'Temel Gıda':           { icon: Package,     color: '#e67e22', bgColor: '#fdf2e9', borderColor: '#fadbd8', lightBg: '#fdf2e9', lightBorder: '#fadbd8', cardBg: '#fdf8f4', cardText: '#935116', checkBg: '#e67e22' },
-  'Atıştırmalık':         { icon: Coffee,      color: '#8e44ad', bgColor: '#f5eeeb', borderColor: '#ebdef0', lightBg: '#f5eeeb', lightBorder: '#ebdef0', cardBg: '#faf5fb', cardText: '#5b2c6f', checkBg: '#8e44ad' },
-  'İçecekler':            { icon: Droplets,    color: '#16a085', bgColor: '#e8f8f5', borderColor: '#a3e4d7', lightBg: '#e8f8f5', lightBorder: '#a3e4d7', cardBg: '#f2faf8', cardText: '#0e6251', checkBg: '#16a085' },
-  'Dondurulmuş Gıdalar':  { icon: Package,     color: '#3498db', bgColor: '#ebf5fb', borderColor: '#a9cce3', lightBg: '#ebf5fb', lightBorder: '#a9cce3', cardBg: '#f3f9fd', cardText: '#1f618d', checkBg: '#3498db' },
-  'Temizlik Ürünleri':    { icon: Droplets,    color: '#0e6251', bgColor: '#e8f8f5', borderColor: '#a2d9ce', lightBg: '#e8f8f5', lightBorder: '#a2d9ce', cardBg: '#f2faf8', cardText: '#0b4d3f', checkBg: '#0e6251' },
-  'Kişisel Bakım':        { icon: Star,        color: '#db3e79', bgColor: '#fce4ec', borderColor: '#f8bbd0', lightBg: '#fce4ec', lightBorder: '#f8bbd0', cardBg: '#fdf2f6', cardText: '#881b47', checkBg: '#db3e79' },
-  'Bebek Ürünleri':       { icon: Baby,        color: '#7d3c98', bgColor: '#f4ecf7', borderColor: '#d7bde2', lightBg: '#f4ecf7', lightBorder: '#d7bde2', cardBg: '#f9f5fb', cardText: '#4a235a', checkBg: '#7d3c98' },
-  'Diğer':                { icon: ShoppingBag,  color: '#7f8c8d', bgColor: '#f2f4f4', borderColor: '#e5e7e9', lightBg: '#f2f4f4', lightBorder: '#e5e7e9', cardBg: '#fbfcfc', cardText: '#566573', checkBg: '#7f8c8d' },
+  'Meyve ve Sebze':       { icon: Apple,      color: '#16a34a', bgColor: '#dcfce7', lightBg: '#dcfce7', cardBg: '#f0fdf4', cardText: '#14532d', solidBg: '#22c55e', solidText: '#16a34a', lightBorder: '#86efac' },
+  'Et ve Tavuk Ürünleri': { icon: Beef,       color: '#dc2626', bgColor: '#fee2e2', lightBg: '#fee2e2', cardBg: '#fff1f2', cardText: '#7f1d1d', solidBg: '#ef4444', solidText: '#dc2626', lightBorder: '#fca5a5' },
+  'Süt Ürünleri':         { icon: Milk,       color: '#2563eb', bgColor: '#dbeafe', lightBg: '#dbeafe', cardBg: '#eff6ff', cardText: '#1e3a8a', solidBg: '#3b82f6', solidText: '#2563eb', lightBorder: '#93c5fd' },
+  'Unlu Mamüller':        { icon: Wheat,      color: '#d97706', bgColor: '#fef3c7', lightBg: '#fef3c7', cardBg: '#fffbeb', cardText: '#78350f', solidBg: '#f59e0b', solidText: '#d97706', lightBorder: '#fcd34d' },
+  'Temel Gıda':           { icon: Package,    color: '#ea580c', bgColor: '#ffedd5', lightBg: '#ffedd5', cardBg: '#fff7ed', cardText: '#7c2d12', solidBg: '#f97316', solidText: '#ea580c', lightBorder: '#fdba74' },
+  'Atıştırmalık':         { icon: Coffee,     color: '#9333ea', bgColor: '#f3e8ff', lightBg: '#f3e8ff', cardBg: '#faf5ff', cardText: '#581c87', solidBg: '#a855f7', solidText: '#9333ea', lightBorder: '#d8b4fe' },
+  'İçecekler':            { icon: Droplets,   color: '#0891b2', bgColor: '#cffafe', lightBg: '#cffafe', cardBg: '#ecfeff', cardText: '#164e63', solidBg: '#06b6d4', solidText: '#0891b2', lightBorder: '#67e8f9' },
+  'Dondurulmuş Gıdalar':  { icon: Package,    color: '#0284c7', bgColor: '#e0f2fe', lightBg: '#e0f2fe', cardBg: '#f0f9ff', cardText: '#0c4a6e', solidBg: '#0ea5e9', solidText: '#0284c7', lightBorder: '#7dd3fc' },
+  'Temizlik Ürünleri':    { icon: Droplets,   color: '#0d9488', bgColor: '#ccfbf1', lightBg: '#ccfbf1', cardBg: '#f0fdfa', cardText: '#134e4a', solidBg: '#14b8a6', solidText: '#0d9488', lightBorder: '#5eead4' },
+  'Kişisel Bakım':        { icon: Star,       color: '#db2777', bgColor: '#fce7f3', lightBg: '#fce7f3', cardBg: '#fdf2f8', cardText: '#831843', solidBg: '#ec4899', solidText: '#db2777', lightBorder: '#f9a8d4' },
+  'Bebek Ürünleri':       { icon: Baby,       color: '#7c3aed', bgColor: '#ede9fe', lightBg: '#ede9fe', cardBg: '#f5f3ff', cardText: '#4c1d95', solidBg: '#8b5cf6', solidText: '#7c3aed', lightBorder: '#c4b5fd' },
+  'Diğer':                { icon: ShoppingBag, color: '#64748b', bgColor: '#f1f5f9', lightBg: '#f1f5f9', cardBg: '#f8fafc', cardText: '#334155', solidBg: '#94a3b8', solidText: '#64748b', lightBorder: '#cbd5e1' },
 };
 
 const CATEGORY_ORDER = [
-  'Meyve ve Sebze',
-  'Et ve Tavuk Ürünleri',
-  'Süt Ürünleri',
-  'Unlu Mamüller',
-  'Temel Gıda',
-  'Atıştırmalık',
-  'İçecekler',
-  'Dondurulmuş Gıdalar',
-  'Temizlik Ürünleri',
-  'Kişisel Bakım',
-  'Bebek Ürünleri',
-  'Diğer'
+  'Meyve ve Sebze', 'Et ve Tavuk Ürünleri', 'Süt Ürünleri', 'Unlu Mamüller',
+  'Temel Gıda', 'Atıştırmalık', 'İçecekler', 'Dondurulmuş Gıdalar',
+  'Temizlik Ürünleri', 'Kişisel Bakım', 'Bebek Ürünleri', 'Diğer'
 ];
-
 const CATEGORIES = Object.keys(CATEGORY_CONFIG);
 
 // ─── THEME CONFIG ─────────────────────────────────────────────────────────────
@@ -67,82 +84,70 @@ const LIST_THEMES: Record<string, {
   solidBg: string;
   pageBg: string;
 }> = {
-  indigo:  { id: 'indigo',  label: 'Mor',   gradient: ['#6366f1', '#4f46e5'], solidBg: '#6366f1', pageBg: '#f5f3ff' },
+  indigo:  { id: 'indigo',  label: 'Mor',   gradient: ['#6366f1', '#7c3aed'], solidBg: '#6366f1', pageBg: '#f5f3ff' },
   emerald: { id: 'emerald', label: 'Yeşil', gradient: ['#10b981', '#059669'], solidBg: '#10b981', pageBg: '#ecfdf5' },
   rose:    { id: 'rose',    label: 'Pembe', gradient: ['#f43f5e', '#e11d48'], solidBg: '#f43f5e', pageBg: '#fff1f2' },
   amber:   { id: 'amber',   label: 'Sarı',  gradient: ['#f59e0b', '#d97706'], solidBg: '#f59e0b', pageBg: '#fffbeb' },
   cyan:    { id: 'cyan',    label: 'Mavi',  gradient: ['#06b6d4', '#0891b2'], solidBg: '#06b6d4', pageBg: '#ecfeff' },
-  fuchsia: { id: 'fuchsia', label: 'Fuşya', gradient: ['#d946ef', '#c084fc'], solidBg: '#d946ef', pageBg: '#fdf4ff' },
+  fuchsia: { id: 'fuchsia', label: 'Fuşya', gradient: ['#d946ef', '#c026d3'], solidBg: '#d946ef', pageBg: '#fdf4ff' },
 };
 
 const LIST_ICONS: Record<string, any> = {
   ShoppingCart, Home, ListChecks, Cake, Notebook, ShoppingBag
 };
 
-// ─── SUGGESTIONS CONFIG ────────────────────────────────────────────────────────
+// ─── SUGGESTIONS ──────────────────────────────────────────────────────────────
 const defaultShoppingItems = [
   "Süt", "Ekmek", "Yumurta", "Peynir", "Zeytin", "Domates", "Salatalık",
   "Biber", "Soğan", "Sarımsak", "Patates", "Elma", "Muz", "Portakal",
   "Limon", "Tavuk", "Kıyma", "Balık", "Pirinç", "Bulgur", "Makarna",
   "Salça", "Sıvı Yağ", "Tereyağı", "Un", "Şeker", "Tuz", "Çay",
   "Kahve", "Yoğurt", "Su", "Meyve Suyu", "Deterjan", "Çamaşır Suyu",
-  "Bulaşık Deterjanı", "Şampuan", "Sabun", "Diş Macunu", "Tuvalet Kağıdı",
-  "Kağıt Havlu"
+  "Bulaşık Deterjanı", "Şampuan", "Sabun", "Diş Macunu", "Tuvalet Kağıdı", "Kağıt Havlu"
 ];
 
-// ─── OFFLINE COMPOUND PARSER & CATEGORIZER ─────────────────────────────────────
+// ─── PARSER ───────────────────────────────────────────────────────────────────
 function parseShoppingItem(rawText: string): { name: string; quantity?: string; category: string }[] {
   const parts = rawText.split(',').map(p => p.trim()).filter(Boolean);
-  
   return parts.map(part => {
-    // Try to match a quantity (e.g. "2 kg elma", "1 adet ekmek", "500g kıyma", "2lt süt")
     const qtyRegex = /^(\d+(?:\.\d+)?\s*(?:kg|g|kilo|gram|adet|paket|lt|litre|şişe|bardak|koli|l|ml)?)\s+(.+)$/i;
     const qtyRegexEnd = /^(.+?)\s+(\d+(?:\.\d+)?\s*(?:kg|g|kilo|gram|adet|paket|lt|litre|şişe|bardak|koli|l|ml)?)$/i;
-    
-    let name = part;
-    let quantity = '';
-    
+    let name = part, quantity = '';
     let match = part.match(qtyRegex);
-    if (match) {
-      quantity = match[1].trim();
-      name = match[2].trim();
-    } else {
-      match = part.match(qtyRegexEnd);
-      if (match) {
-        name = match[1].trim();
-        quantity = match[2].trim();
-      }
-    }
-    
+    if (match) { quantity = match[1].trim(); name = match[2].trim(); }
+    else { match = part.match(qtyRegexEnd); if (match) { name = match[1].trim(); quantity = match[2].trim(); } }
     const lowerName = name.toLowerCase();
     let category = 'Diğer';
-    
-    const keywords: Record<string, string[]> = {
-      'Meyve ve Sebze': ['elma', 'armut', 'muz', 'çilek', 'karpuz', 'kavun', 'portakal', 'mandalina', 'limon', 'şeftali', 'erik', 'kiraz', 'vişne', 'nar', 'incir', 'üzüm', 'domates', 'salatalık', 'biber', 'patates', 'soğan', 'sarımsak', 'havuç', 'ıspanak', 'marul', 'maydanoz', 'lahana', 'pırasa', 'kabak', 'patlıcan', 'brokoli', 'karnabahar', 'bezelye', 'bamya', 'fasulye', 'kereviz', 'enginar', 'mantar', 'roka', 'nane', 'dereotu', 'kivi', 'avokado', 'şeftali', 'kayısı', 'turp', 'yeşillik', 'sebze', 'meyve'],
-      'Süt Ürünleri': ['süt', 'peynir', 'yoğurt', 'tereyağı', 'kaymak', 'krema', 'kefir', 'ayran', 'kaşar', 'lor', 'süzme', 'labne', 'margarin', 'çökelek'],
-      'Et ve Tavuk Ürünleri': ['et', 'kıyma', 'tavuk', 'pirzola', 'bonfile', 'antrikot', 'biftek', 'köfte', 'sosis', 'salam', 'sucuk', 'pastırma', 'jambon', 'hindi', 'balık', 'somon', 'levrek', 'çipura', 'hamsi', 'istavrit', 'karides', 'kalamar', 'kuzu', 'dana'],
-      'Unlu Mamüller': ['ekmek', 'pide', 'simit', 'poğaça', 'açma', 'börek', 'çörek', 'kurabiye', 'kek', 'pasta', 'yufka', 'milföy', 'kruvasan', 'lavaş', 'bazlama', 'tost ekmeği', 'galeta'],
-      'Temel Gıda': ['pirinç', 'bulgur', 'makarna', 'salça', 'yağ', 'zeytinyağı', 'sıvı yağ', 'un', 'şeker', 'tuz', 'mercimek', 'nohut', 'fasulye', 'bakliyat', 'irmik', 'nişasta', 'sirke', 'baharat', 'karabiber', 'pul biber', 'kekik', 'kimyon', 'nane', 'ketçap', 'mayonez', 'hardal', 'sos'],
-      'Atıştırmalık': ['çikolata', 'gofret', 'bisküvi', 'kraker', 'cips', 'kuruyemiş', 'fındık', 'fıstık', 'ceviz', 'badem', 'leblebi', 'çekirdek', 'lokum', 'jelibon', 'şekerleme', 'bar', 'granola', 'cips'],
-      'İçecekler': ['su', 'meyve suyu', 'soda', 'gazoz', 'kola', 'fanta', 'sprite', 'ice tea', 'soğuk çay', 'limonata', 'şalgam', 'kahve', 'çay', 'bitki çayı', 'yeşil çay', 'ıhlamur', 'adaçayı', 'kakao'],
-      'Dondurulmuş Gıdalar': ['dondurma', 'dondurulmuş', 'frozen', 'pizza', 'milföy', 'mantı', 'kroket'],
-      'Temizlik Ürünleri': ['deterjan', 'çamaşır suyu', 'yumuşatıcı', 'sıvı sabun', 'sabun', 'şampuan', 'duş jeli', 'diş macunu', 'tuvalet kağıdı', 'kağıt havlu', 'peçete', 'ıslak mendil', 'çöp torbası', 'sünger', 'bez', 'vileda', 'paspas', 'kireç'],
-      'Kişisel Bakım': ['şampuan', 'sabun', 'duş jeli', 'saç kremi', 'deodorant', 'parfüm', 'kolonya', 'tıraş', 'krem', 'losyon', 'makyaj', 'ped', 'diş fırçası'],
-      'Bebek Ürünleri': ['bebek', 'bezi', 'pişik', 'mama', 'biberon', 'emzik', 'ıslak mendil']
+
+    // Her kategori için [kelime, tamKelimeEşleşmesiGerekli] çiftleri
+    // tamKelime=true olanlar sadece başlı başına bir kelime olarak eşleşir (örn. "et" → "et" ✓, "tuvalet" ✗)
+    const keywords: Record<string, Array<[string, boolean]>> = {
+      'Meyve ve Sebze':       [['elma',false],['armut',false],['muz',false],['çilek',false],['karpuz',false],['kavun',false],['portakal',false],['mandalina',false],['limon',false],['domates',false],['salatalık',false],['biber',false],['patates',false],['soğan',false],['sarımsak',false],['havuç',false],['ıspanak',false],['marul',false],['lahana',false],['pırasa',false],['kabak',false],['patlıcan',false],['brokoli',false],['mantar',false],['yeşillik',false],['sebze',false],['meyve',false],['turp',false],['kereviz',false],['enginar',false],['maydanoz',false],['dereotu',false],['roka',false]],
+      'Süt Ürünleri':         [['süt',false],['peynir',false],['yoğurt',false],['tereyağı',false],['kaymak',false],['krema',false],['kefir',false],['ayran',false],['kaşar',false],['lor',false],['süzme',false],['labne',false],['margarin',false]],
+      'Et ve Tavuk Ürünleri': [['et',true],['kıyma',false],['tavuk',false],['pirzola',false],['bonfile',false],['köfte',false],['sosis',false],['salam',false],['sucuk',false],['pastırma',false],['hindi',false],['balık',false],['somon',false],['levrek',false],['karides',false],['dana',false],['kuzu',false],['biftek',false]],
+      'Unlu Mamüller':        [['ekmek',false],['pide',false],['simit',false],['poğaça',false],['açma',false],['börek',false],['çörek',false],['kurabiye',false],['kek',false],['yufka',false],['milföy',false],['tost',false],['galeta',false],['gevrek',false]],
+      'Temel Gıda':           [['pirinç',false],['bulgur',false],['makarna',false],['salça',false],['zeytinyağı',false],['sıvı yağ',false],['zeytин',false],['zeytin',false],['un',true],['şeker',false],['tuz',true],['mercimek',false],['nohut',false],['fasulye',false],['baharat',false],['ketçap',false],['mayonez',false],['sirke',false],['sos',false],['konserve',false],['yağ',true]],
+      'Atıştırmalık':         [['çikolata',false],['gofret',false],['bisküvi',false],['kraker',false],['cips',false],['kuruyemiş',false],['fındık',false],['fıstık',false],['ceviz',false],['badem',false],['leblebi',false],['çekirdek',false],['gummy',false],['şeker',false]],
+      'İçecekler':            [['meyve suyu',false],['soda',false],['gazoz',false],['kola',false],['kahve',false],['çay',false],['limonata',false],['enerji içeceği',false],['ayran',false],['su',true]],
+      'Dondurulmuş Gıdalar':  [['dondurma',false],['dondurulmuş',false],['frozen',false],['pizza',false],['mantı',false],['kroket',false]],
+      'Temizlik Ürünleri':    [['deterjan',false],['çamaşır suyu',false],['yumuşatıcı',false],['sıvı sabun',false],['tuvalet kağıdı',false],['kağıt havlu',false],['çöp torbası',false],['çöp poşeti',false],['bulaşık',false],['temizlik',false],['yer bezi',false],['sünger',false],['klozet',false],['tuvalet',false],['çamaşır',false],['ütü suyu',false]],
+      'Kişisel Bakım':        [['şampuan',false],['duş jeli',false],['saç kremi',false],['deodorant',false],['krem',false],['losyon',false],['diş fırçası',false],['diş macunu',false],['sabun',false],['parfüm',false],['makyaj',false],['ruj',false],['fondöten',false],['maskara',false],['tıraş',false],['after shave',false]],
+      'Bebek Ürünleri':       [['bebek',false],['bez',false],['pişik',false],['mama',false],['biberon',false],['emzik',false]],
     };
-    
-    for (const [catName, words] of Object.entries(keywords)) {
-      if (words.some(word => lowerName.includes(word))) {
+
+    // Tam kelime eşleşmesi: başında/sonunda harf olmayan karakter (boşluk, nokta, başlangıç/bitiş)
+    const isWordMatch = (text: string, word: string) => {
+      const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(`(^|[^a-zA-ZğüşıöçĞÜŞİÖÇ])${escaped}([^a-zA-ZğüşıöçĞÜŞİÖÇ]|$)`, 'i').test(text);
+    };
+
+    for (const [catName, pairs] of Object.entries(keywords)) {
+      if (pairs.some(([word, exact]) => exact ? isWordMatch(lowerName, word) : lowerName.includes(word))) {
         category = catName;
         break;
       }
     }
-    
-    return {
-      name,
-      ...(quantity ? { quantity } : {}),
-      category
-    };
+    return { name, ...(quantity ? { quantity } : {}), category };
   });
 }
 
@@ -152,34 +157,37 @@ export default function ShoppingScreen() {
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
   const router = useRouter();
 
-  // Create & Edit List Modal States
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newListName, setNewListName] = useState('');
   const [newListIcon, setNewListIcon] = useState('ShoppingCart');
   const [newListColor, setNewListColor] = useState('indigo');
   const [editingList, setEditingList] = useState<ShoppingList | null>(null);
 
-  // Detail View States
   const [detailTab, setDetailTab] = useState<'pending' | 'bought'>('pending');
   const [newItemName, setNewItemName] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Diğer');
   const [isCategorySelectorOpen, setIsCategorySelectorOpen] = useState(false);
   const [isAddItemOpen, setIsAddItemOpen] = useState(false);
-  const [isAddSuccess, setIsAddSuccess] = useState(false);
   const [isAiProcessing, setIsAiProcessing] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const [crossedOutItems, setCrossedOutItems] = useState<Set<string>>(new Set());
 
-  // List Options Bottom Sheet Modal
   const [isOptionsModalOpen, setIsOptionsModalOpen] = useState(false);
   const [selectedMenuList, setSelectedMenuList] = useState<ShoppingList | null>(null);
+  const [strikedItemIds, setStrikedItemIds] = useState<Set<string>>(new Set());
 
   const { width: winWidth, height: winHeight } = useWindowDimensions();
   const isLandscape = winWidth > winHeight;
   const isTablet = Math.min(winWidth, winHeight) >= 600;
   const isTabletLandscape = isTablet && isLandscape;
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  // Always use light theme (matching web project)
+  const isDark = false;
+
+  const bg         = '#f8fafc';
+  const cardBg     = '#ffffff';
+  const cardBorder = 'rgba(226,232,240,0.8)';
+  const textPrimary   = '#0f172a';
+  const textSecondary = '#64748b';
+  const textMuted     = '#94a3b8';
 
   useEffect(() => {
     let unsubscribe: any;
@@ -189,79 +197,50 @@ export default function ShoppingScreen() {
         setLoading(false);
         try {
           if (Platform.OS === 'android' && NativeModules.WidgetHelper) {
-            const activeItems = [];
+            const activeItems: any[] = [];
             data.forEach(list => {
-                if (list.items) {
-                    list.items.forEach(item => {
-                        activeItems.push({
-                            id: item.id,
-                            listId: list.id,
-                            name: item.name,
-                            quantity: item.quantity || '',
-                            isBought: false
-                        });
-                    });
-                }
+              if (list.items) list.items.forEach(item => activeItems.push({ id: item.id, listId: list.id, name: item.name, quantity: item.quantity || '', isBought: false }));
             });
             NativeModules.WidgetHelper.updateWidgetData(JSON.stringify(activeItems.slice(0, 10)));
           }
-        } catch(err) {
-          console.log('Widget sync error', err);
-        }
+        } catch(err) { console.log('Widget sync error', err); }
       });
     } catch (e) {
       console.log('Error fetching shopping lists:', e);
       setLoading(false);
     }
 
-    // Check for pending bought items from widget
     if (Platform.OS === 'android' && NativeModules.WidgetHelper) {
       NativeModules.WidgetHelper.getPendingBoughtItems()
         .then((jsonStr: string) => {
           if (jsonStr && jsonStr !== '[]') {
             try {
               const pendingItems = JSON.parse(jsonStr);
-              if (pendingItems && pendingItems.length > 0) {
-                pendingItems.forEach((pi: any) => {
-                  if (pi.listId && pi.id) {
-                    moveItemToBought(pi.listId, pi.id);
-                  }
-                });
+              if (pendingItems?.length > 0) {
+                pendingItems.forEach((pi: any) => { if (pi.listId && pi.id) moveItemToBought(pi.listId, pi.id); });
                 NativeModules.WidgetHelper.clearPendingBoughtItems();
               }
             } catch(e) {}
           }
-        })
-        .catch(console.error);
+        }).catch(console.error);
     }
 
-    return () => {
-      if (typeof unsubscribe === 'function') unsubscribe();
-    };
+    return () => { if (typeof unsubscribe === 'function') unsubscribe(); };
   }, []);
 
-  // Sorted Lists (order asc, then createdAt desc)
   const sortedLists = useMemo(() => {
     return [...lists].sort((a, b) => {
       const oA = a.order ?? 0, oB = b.order ?? 0;
       if (oA !== oB) return oA - oB;
-      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return timeB - timeA;
+      return (b.createdAt ? new Date(b.createdAt).getTime() : 0) - (a.createdAt ? new Date(a.createdAt).getTime() : 0);
     });
   }, [lists]);
 
-  const selectedList = useMemo(() => {
-    return lists.find(l => l.id === selectedListId) || null;
-  }, [lists, selectedListId]);
+  const selectedList = useMemo(() => lists.find(l => l.id === selectedListId) || null, [lists, selectedListId]);
 
-  // Autocomplete Suggestions
   const historicalItems = useMemo(() => {
     const items = new Set<string>();
-    lists.forEach(l => {
-      (l.items || []).forEach(i => items.add(i.name));
-      (l.boughtItems || []).forEach(i => items.add(i.name));
-    });
+    lists.forEach(l => { (l.items || []).forEach(i => items.add(i.name)); (l.boughtItems || []).forEach(i => items.add(i.name)); });
     return Array.from(items);
   }, [lists]);
 
@@ -277,43 +256,23 @@ export default function ShoppingScreen() {
     if (!newListName.trim()) return;
     try {
       if (editingList) {
-        await updateShoppingList(editingList.id, {
-          name: newListName.trim(),
-          icon: newListIcon,
-          colorId: newListColor
-        });
+        await updateShoppingList(editingList.id, { name: newListName.trim(), icon: newListIcon, colorId: newListColor });
         setEditingList(null);
       } else {
         await addShoppingList(newListName.trim(), newListIcon, newListColor);
       }
-      setNewListName('');
-      setIsCreateModalOpen(false);
-    } catch (e) {
-      console.error(e);
-    }
+      setNewListName(''); setIsCreateModalOpen(false);
+    } catch (e) { console.error(e); }
   };
 
   const handleDeleteList = async (id: string) => {
-    Alert.alert(
-      "Listeyi Sil",
-      "Bu liste ve içindeki tüm ürünler kalıcı olarak silinecek. Emin misiniz?",
-      [
-        { text: "İptal", style: "cancel" },
-        { 
-          text: "Sil", 
-          style: "destructive", 
-          onPress: async () => {
-            try {
-              await deleteShoppingList(id);
-              if (selectedListId === id) setSelectedListId(null);
-              setIsOptionsModalOpen(false);
-            } catch (e) {
-              console.error(e);
-            }
-          }
-        }
-      ]
-    );
+    Alert.alert("Listeyi Sil", "Bu liste ve tüm ürünleri kalıcı olarak silinecek.", [
+      { text: "İptal", style: "cancel" },
+      { text: "Sil", style: "destructive", onPress: async () => {
+        try { await deleteShoppingList(id); if (selectedListId === id) setSelectedListId(null); setIsOptionsModalOpen(false); }
+        catch (e) { console.error(e); }
+      }}
+    ]);
   };
 
   const handleMoveList = async (list: ShoppingList, dir: 'up' | 'down') => {
@@ -321,433 +280,392 @@ export default function ShoppingScreen() {
     const targetIdx = dir === 'up' ? idx - 1 : idx + 1;
     if (targetIdx < 0 || targetIdx >= sortedLists.length) return;
     const targetList = sortedLists[targetIdx];
-    
-    const currentOrder = list.order ?? idx;
-    const targetOrder = targetList.order ?? targetIdx;
-    
     try {
-      await updateShoppingList(list.id, { order: targetOrder });
-      await updateShoppingList(targetList.id, { order: currentOrder });
+      await updateShoppingList(list.id, { order: targetList.order ?? targetIdx });
+      await updateShoppingList(targetList.id, { order: list.order ?? idx });
       setIsOptionsModalOpen(false);
-    } catch (e) {
-      console.error('Error reordering lists:', e);
-    }
+    } catch (e) { console.error(e); }
   };
 
   const handleAddItem = async (customName?: string) => {
     const inputName = customName || newItemName;
     if (!inputName.trim() || !selectedListId) return;
-
     setIsAiProcessing(true);
     try {
-      // If compound addition (contains comma)
       if (inputName.includes(',')) {
         const items = parseShoppingItem(inputName);
-        for (const item of items) {
-          await addShoppingListItemToList(selectedListId, {
-            name: item.name,
-            category: item.category,
-            quantity: item.quantity || '',
-            isBought: false
-          });
-        }
+        for (const item of items) await addShoppingListItemToList(selectedListId, { name: item.name, category: item.category, quantity: item.quantity || '', isBought: false });
       } else {
-        // Single item
-        let category = selectedCategory;
-        let quantity = '';
-        let name = inputName.trim();
-
-        // Predict category if left as "Diğer"
-        if (category === 'Diğer') {
-          const parsed = parseShoppingItem(inputName)[0];
-          category = parsed.category;
-          quantity = parsed.quantity || '';
-          name = parsed.name;
-        }
-
-        await addShoppingListItemToList(selectedListId, {
-          name,
-          category,
-          quantity,
-          isBought: false
-        });
+        let category = selectedCategory, quantity = '', name = inputName.trim();
+        if (category === 'Diğer') { const parsed = parseShoppingItem(inputName)[0]; category = parsed.category; quantity = parsed.quantity || ''; name = parsed.name; }
+        await addShoppingListItemToList(selectedListId, { name, category, quantity, isBought: false });
       }
-
-      setNewItemName('');
-      setSelectedCategory('Diğer');
-      setIsAddItemOpen(false);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsAiProcessing(false);
-    }
+      setNewItemName(''); setSelectedCategory('Diğer'); setIsAddItemOpen(false);
+    } catch (e) { console.error(e); }
+    finally { setIsAiProcessing(false); }
   };
 
   const toggleVoice = () => {
-    if (isListening) {
-      setIsListening(false);
-      return;
-    }
+    if (isListening) { setIsListening(false); return; }
     setIsListening(true);
-    // Simulate speech to text
-    setTimeout(() => {
-      setNewItemName("2 kg elma, 1 lt süt, ekmek");
-      setIsListening(false);
-      Alert.alert("Ses Tanımlandı", "\"2 kg elma, 1 lt süt, ekmek\" algılandı.");
-    }, 1500);
+    setTimeout(() => { setNewItemName("2 kg elma, 1 lt süt, ekmek"); setIsListening(false); Alert.alert("Ses Tanımlandı", "\"2 kg elma, 1 lt süt, ekmek\" algılandı."); }, 1500);
   };
 
   const handleToggleItem = async (item: ShoppingItem) => {
     if (!selectedListId) return;
-    try {
-      if (item.isBought) {
-        await moveItemToPending(selectedListId, item.id);
-      } else {
-        await moveItemToBought(selectedListId, item.id);
-      }
-    } catch (e) {
-      console.error(e);
-      console.error(e);
-    }
-  };
-  const handleDeleteItem = async (item: ShoppingItem) => {
-    if (!selectedListId) return;
-    try {
-      await deleteShoppingListItemFromList(selectedListId, item.id, item.isBought);
-    } catch (e) {
-      console.error(e);
-    }
+    try { item.isBought ? await moveItemToPending(selectedListId, item.id) : await moveItemToBought(selectedListId, item.id); }
+    catch (e) { console.error(e); }
   };
 
-  // ─── RENDERING HELPERS ───
+  const handleStrikeItem = (itemId: string) => {
+    setStrikedItemIds(prev => {
+      const next = new Set(prev);
+      next.has(itemId) ? next.delete(itemId) : next.add(itemId);
+      return next;
+    });
+  };
+
+  const handleDeleteItem = async (item: ShoppingItem) => {
+    if (!selectedListId) return;
+    try { await deleteShoppingListItemFromList(selectedListId, item.id, item.isBought); }
+    catch (e) { console.error(e); }
+  };
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: isDark ? '#070b14' : '#f5f3ff' }}>
+        <LinearGradient colors={['#6366f1', '#7c3aed']} style={{ width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator color="white" size="small" />
+        </LinearGradient>
+        <Text style={{ color: textMuted, fontWeight: '600', fontSize: 13, marginTop: 16 }}>Yükleniyor...</Text>
+      </View>
+    );
+  }
+
+  // ─── DETAIL VIEW ──────────────────────────────────────────────────────────────
   const renderDetailView = () => {
     if (!selectedList) return null;
     const theme = LIST_THEMES[selectedList.colorId || 'indigo'] || LIST_THEMES.indigo;
-    const pendingItems = (selectedList.items || []).sort((a, b) => {
-      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return timeB - timeA;
-    });
-    const boughtItems = (selectedList.boughtItems || []).sort((a, b) => {
-      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return timeB - timeA;
-    });
+    const pendingItems = (selectedList.items || []).sort((a, b) => (b.createdAt ? new Date(b.createdAt).getTime() : 0) - (a.createdAt ? new Date(a.createdAt).getTime() : 0));
+    const boughtItems  = (selectedList.boughtItems || []).sort((a, b) => (b.createdAt ? new Date(b.createdAt).getTime() : 0) - (a.createdAt ? new Date(a.createdAt).getTime() : 0));
+    const total = pendingItems.length + boughtItems.length;
+    const progress = total === 0 ? 0 : Math.round((boughtItems.length / total) * 100);
+    const ListIcon = LIST_ICONS[selectedList.icon || 'ShoppingCart'] || ShoppingCart;
 
-    const totalCount = pendingItems.length + boughtItems.length;
-    const progress = totalCount === 0 ? 0 : Math.round((boughtItems.length / totalCount) * 100);
+
 
     return (
-      <View className="flex-1" style={{ backgroundColor: theme.pageBg }}>
-        {/* Colorful Gradient Header */}
+      <View style={{ flex: 1, backgroundColor: isDark ? '#070b14' : theme.pageBg }}>
+        {/* ── Gradient Header (web-style sticky colored header) ── */}
         <LinearGradient
-          colors={theme.gradient as [string, string, ...string[]]}
+          colors={theme.gradient as [string, string]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={styles.headerGradient}
         >
-          <SafeAreaView edges={['top']} className="m-0 p-0" />
-          <View className="flex-row justify-between items-center mb-3">
+          <SafeAreaView edges={['top']} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingBottom: 12 }}>
             {!isTabletLandscape && (
-              <TouchableOpacity onPress={() => setSelectedListId(null)} className="w-9 h-9 rounded-full bg-white/20 items-center justify-center">
-                <ChevronLeft size={20} color="white" />
+              <TouchableOpacity
+                onPress={() => setSelectedListId(null)}
+                style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <ArrowLeft size={18} color="white" />
               </TouchableOpacity>
             )}
-            
-            <View className="items-center flex-1 mx-3">
-              <Text className="text-white font-bold text-lg text-center" numberOfLines={1}>{selectedList.name}</Text>
-              <Text className="text-white/80 text-[10px] font-bold uppercase tracking-wider">
-                {boughtItems.length} / {totalCount} Alındı
+            <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}>
+              <ListIcon size={18} color="white" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: 'white', fontWeight: '800', fontSize: 17, letterSpacing: -0.3 }} numberOfLines={1}>{selectedList.name}</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.7)', fontWeight: '600', fontSize: 11 }}>
+                {pendingItems.length} bekliyor · {boughtItems.length} alındı
               </Text>
             </View>
-
-            <TouchableOpacity 
-              onPress={() => {
-                setSelectedMenuList(selectedList);
-                setIsOptionsModalOpen(true);
-              }}
-              className="w-9 h-9 rounded-full bg-white/20 items-center justify-center"
+            {total > 0 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}>
+                <View style={{ width: 52, height: 6, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 3, overflow: 'hidden' }}>
+                  <View style={{ height: '100%', width: `${progress}%`, backgroundColor: 'white', borderRadius: 3 }} />
+                </View>
+                <Text style={{ color: 'white', fontWeight: '800', fontSize: 12 }}>{progress}%</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              onPress={() => { setSelectedMenuList(selectedList); setIsOptionsModalOpen(true); }}
+              style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}
             >
               <MoreVertical size={16} color="white" />
             </TouchableOpacity>
           </View>
 
-          {totalCount > 0 && (
-            <View className="flex-row items-center gap-2 px-1">
-              <View className="flex-1 h-1.5 bg-white/30 rounded-full overflow-hidden">
-                <View className="h-full bg-white rounded-full" style={{ width: `${progress}%` }} />
-              </View>
-              <Text className="text-white font-bold text-[10px]">{progress}%</Text>
-            </View>
-          )}
+          {/* Tabs inside header (web-style) */}
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {(['pending', 'bought'] as const).map(tab => (
+              <TouchableOpacity
+                key={tab}
+                onPress={() => setDetailTab(tab)}
+                style={{
+                  flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center',
+                  backgroundColor: detailTab === tab ? 'white' : 'rgba(255,255,255,0.2)'
+                }}
+              >
+                <Text style={{ fontWeight: '700', fontSize: 12, color: detailTab === tab ? '#1e293b' : 'white' }}>
+                  {tab === 'pending' ? `🛒 Alınacaklar (${pendingItems.length})` : `✅ Alınanlar (${boughtItems.length})`}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </LinearGradient>
 
-        <View className="flex-row mx-4 mt-4 bg-white/70 dark:bg-slate-900/70 p-1 rounded-2xl border border-slate-200/50 dark:border-slate-800">
-          <TouchableOpacity 
-            onPress={() => setDetailTab('pending')}
-            className={`flex-1 py-2.5 rounded-xl items-center ${detailTab === 'pending' ? 'bg-white dark:bg-slate-800 shadow-sm' : ''}`}
-          >
-            <Text className={`font-bold text-xs ${detailTab === 'pending' ? 'text-slate-800 dark:text-white' : 'text-slate-500'}`}>
-              Alınacaklar ({pendingItems.length})
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            onPress={() => setDetailTab('bought')}
-            className={`flex-1 py-2.5 rounded-xl items-center ${detailTab === 'bought' ? 'bg-white dark:bg-slate-800 shadow-sm' : ''}`}
-          >
-            <Text className={`font-bold text-xs ${detailTab === 'bought' ? 'text-slate-800 dark:text-white' : 'text-slate-500'}`}>
-              Alınanlar ({boughtItems.length})
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+        {/* ── Content ── */}
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 20, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
           {detailTab === 'pending' ? (
             pendingItems.length === 0 ? (
-              <View className="items-center justify-center mt-20 bg-white/80 dark:bg-slate-900/80 p-8 rounded-[2rem] border border-dashed border-slate-200 dark:border-slate-800">
-                <ListChecks size={40} color={theme.solidBg} className="mb-2 opacity-50" />
-                <Text className="text-slate-650 dark:text-slate-350 font-bold text-center text-sm">Liste Boş!</Text>
-                <Text className="text-slate-400 text-center text-xs mt-1">Aşağıdaki + butonunu kullanarak hızlıca ürün ekleyin.</Text>
+              <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 80 }}>
+                <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.8)', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+                  <ListChecks size={36} color={textMuted} />
+                </View>
+                <Text style={{ color: textPrimary, fontWeight: '700', fontSize: 16 }}>Liste boş!</Text>
+                <Text style={{ color: textMuted, fontSize: 13, marginTop: 6 }}>+ butonuna basarak ürün ekle.</Text>
               </View>
             ) : (
-              <View className="mb-4">
-                {pendingItems.map(item => {
-                  const cat = CATEGORY_CONFIG[item.category || 'Diğer'] || CATEGORY_CONFIG.Diğer;
+              <View style={{ gap: 6 }}>
+                {pendingItems.map((item, idx) => {
+                  const cat = CATEGORY_CONFIG[item.category || 'Diğer'] || CATEGORY_CONFIG['Diğer'];
                   const CatIcon = cat.icon;
+                  const isStriked = strikedItemIds.has(item.id);
                   return (
-                    <View 
-                      key={item.id} 
-                      style={{ backgroundColor: cat.cardBg, borderColor: cat.lightBorder }}
-                      className="flex-row items-center p-3.5 rounded-2xl mb-2 border shadow-sm"
+                    <TouchableOpacity
+                      key={`${item.id}-${idx}`}
+                      onPress={() => handleStrikeItem(item.id)}
+                      activeOpacity={0.75}
+                      style={{
+                        flexDirection: 'row', alignItems: 'center', gap: 12,
+                        paddingHorizontal: 16, paddingVertical: 14,
+                        backgroundColor: isStriked ? 'rgba(255,255,255,0.6)' : (isDark ? `${cat.bgColor}15` : cat.cardBg),
+                        borderWidth: 2,
+                        borderColor: isStriked ? 'rgba(226,232,240,0.8)' : (isDark ? `${cat.lightBorder}30` : cat.lightBorder),
+                        borderRadius: 20,
+                        opacity: isStriked ? 0.7 : 1,
+                      }}
                     >
-                      <TouchableOpacity 
-                        className="mr-3 p-1"
-                        onPress={() => {
-                          const newSet = new Set(crossedOutItems);
-                          if (newSet.has(item.id)) newSet.delete(item.id);
-                          else newSet.add(item.id);
-                          setCrossedOutItems(newSet);
-                        }}
-                      >
-                        <View 
-                          style={{ borderColor: cat.lightBorder }} 
-                          className={`w-6 h-6 rounded-full border-2 items-center justify-center ${crossedOutItems.has(item.id) ? 'bg-emerald-500 border-emerald-500' : 'bg-white'}`}
-                        >
-                          {crossedOutItems.has(item.id) && <Check size={12} color="white" strokeWidth={3} />}
-                        </View>
-                      </TouchableOpacity>
-
-                      <View className="p-1.5 rounded-xl mr-3" style={{ backgroundColor: cat.lightBg }}>
-                        <CatIcon size={15} color={cat.color} />
+                      {/* Circle */}
+                      <View style={{
+                        width: 24, height: 24, borderRadius: 12,
+                        borderWidth: 2,
+                        borderColor: isStriked ? '#10b981' : (isDark ? cat.lightBorder + '60' : cat.lightBorder),
+                        backgroundColor: isStriked ? '#10b981' : (isDark ? 'rgba(255,255,255,0.06)' : 'white'),
+                        flexShrink: 0,
+                        alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {isStriked && <Check size={13} color="white" strokeWidth={3} />}
                       </View>
-
-                      <TouchableOpacity 
-                        className="flex-1" 
-                        activeOpacity={0.6}
-                        onPress={() => {
-                          const newSet = new Set(crossedOutItems);
-                          if (newSet.has(item.id)) newSet.delete(item.id);
-                          else newSet.add(item.id);
-                          setCrossedOutItems(newSet);
-                        }}
-                      >
-                        <Text className={`font-bold text-[14px] ${crossedOutItems.has(item.id) ? 'line-through text-slate-400' : ''}`} style={!crossedOutItems.has(item.id) ? { color: cat.cardText } : {}}>
+                      {/* Category icon */}
+                      <View style={{
+                        padding: 8, borderRadius: 12,
+                        backgroundColor: isDark ? `${cat.bgColor}30` : cat.lightBg,
+                        borderWidth: 1, borderColor: isDark ? `${cat.lightBorder}30` : cat.lightBorder,
+                        flexShrink: 0,
+                        opacity: isStriked ? 0.5 : 1,
+                      }}>
+                        <CatIcon size={16} color={isDark ? cat.lightBorder : cat.solidText} />
+                      </View>
+                      {/* Name */}
+                      <View style={{ flex: 1 }}>
+                        <Text style={{
+                          fontSize: 14, fontWeight: '700',
+                          color: isStriked ? textMuted : (isDark ? cat.lightBorder : cat.cardText),
+                          textDecorationLine: isStriked ? 'line-through' : 'none',
+                        }}>
                           {item.name}
                         </Text>
                         {item.quantity ? (
-                          <Text className={`text-[10px] font-bold mt-0.5 ${crossedOutItems.has(item.id) ? 'line-through text-slate-400' : 'text-slate-400'}`}>Miktar: {item.quantity}</Text>
+                          <Text style={{
+                            fontSize: 11, color: textMuted, marginTop: 2,
+                            textDecorationLine: isStriked ? 'line-through' : 'none',
+                          }}>{item.quantity}</Text>
                         ) : null}
-                      </TouchableOpacity>
-
-                      <TouchableOpacity onPress={() => handleToggleItem(item)} className="p-2 bg-white/50 rounded-full">
-                        <X size={14} color="#ef4444" />
-                      </TouchableOpacity>
-                    </View>
+                      </View>
+                      {/* Silme butonu — sadece çiziliyken */}
+                      {isStriked && (
+                        <TouchableOpacity
+                          onPress={() => handleDeleteItem(item)}
+                          style={{
+                            width: 32, height: 32, borderRadius: 16,
+                            alignItems: 'center', justifyContent: 'center',
+                            flexShrink: 0,
+                            backgroundColor: 'rgba(239,68,68,0.1)',
+                          }}
+                        >
+                          <Trash2 size={15} color="#ef4444" />
+                        </TouchableOpacity>
+                      )}
+                    </TouchableOpacity>
                   );
                 })}
               </View>
             )
           ) : (
             boughtItems.length === 0 ? (
-              <View className="items-center justify-center mt-20 bg-white/40 dark:bg-slate-900/30 p-8 rounded-[2rem] border border-dashed border-slate-200/50">
-                <CheckCircle2 size={40} color="#94a3b8" className="mb-2 opacity-50" />
-                <Text className="text-slate-500 font-bold text-center text-sm">Alınan Ürün Yok.</Text>
+              <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
+                <CheckCircle2 size={48} color={textMuted} style={{ opacity: 0.5 }} />
+                <Text style={{ color: textMuted, fontWeight: '700', fontSize: 14, marginTop: 12 }}>Henüz alınan ürün yok.</Text>
               </View>
             ) : (
-              boughtItems.map(item => {
-                const cat = CATEGORY_CONFIG[item.category || 'Diğer'] || CATEGORY_CONFIG.Diğer;
-                const CatIcon = cat.icon;
-                return (
-                  <View 
-                    key={item.id} 
-                    className="flex-row items-center p-3.5 bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 rounded-2xl mb-2 shadow-sm opacity-80"
-                  >
-                    <TouchableOpacity onPress={() => handleToggleItem(item)} className="mr-3">
-                      <View className="w-6 h-6 rounded-full bg-emerald-500 items-center justify-center shadow-sm">
-                        <Check size={12} color="white" strokeWidth={3} />
+              <View style={{ gap: 6 }}>
+                {boughtItems.map((item, idx) => {
+                  const cat = CATEGORY_CONFIG[item.category || 'Diğer'] || CATEGORY_CONFIG['Diğer'];
+                  const CatIcon = cat.icon;
+                  return (
+                    <View key={`${item.id}-${idx}`} style={{
+                      flexDirection: 'row', alignItems: 'center', gap: 12,
+                      paddingHorizontal: 14, paddingVertical: 12,
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.6)',
+                      borderWidth: 1, borderColor: cardBorder, borderRadius: 16, opacity: 0.7
+                    }}>
+                      <TouchableOpacity
+                        onPress={() => handleToggleItem(item)}
+                        style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#10b981', alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <Check size={13} color="white" strokeWidth={3} />
+                      </TouchableOpacity>
+                      <View style={{ padding: 7, borderRadius: 10, backgroundColor: isDark ? `${cat.bgColor}20` : cat.lightBg, opacity: 0.6 }}>
+                        <CatIcon size={14} color={isDark ? cat.lightBorder : cat.solidText} />
                       </View>
-                    </TouchableOpacity>
-
-                    <View className="p-1.5 rounded-xl mr-3 opacity-50" style={{ backgroundColor: cat.lightBg }}>
-                      <CatIcon size={15} color={cat.color} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, fontWeight: '600', textDecorationLine: 'line-through', color: textMuted }}>
+                          {item.name}
+                        </Text>
+                        {item.quantity ? <Text style={{ fontSize: 11, color: textMuted, textDecorationLine: 'line-through' }}>{item.quantity}</Text> : null}
+                      </View>
+                      <TouchableOpacity onPress={() => handleDeleteItem(item)} style={{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }}>
+                        <X size={16} color={textMuted} />
+                      </TouchableOpacity>
                     </View>
-
-                    <View className="flex-1">
-                      <Text className="font-bold text-[14px] line-through text-slate-400 dark:text-slate-500">
-                        {item.name}
-                      </Text>
-                      {item.quantity ? (
-                        <Text className="text-[10px] font-medium text-slate-400 line-through">Miktar: {item.quantity}</Text>
-                      ) : null}
-                    </View>
-
-                    <TouchableOpacity onPress={() => handleDeleteItem(item)} className="p-2">
-                      <X size={14} color="#94a3b8" />
-                    </TouchableOpacity>
-                  </View>
-                );
-              })
+                  );
+                })}
+              </View>
             )
           )}
         </ScrollView>
 
-        <TouchableOpacity 
-          onPress={() => {
-            setNewItemName('');
-            setIsAddItemOpen(true);
-          }}
-          className="absolute bottom-24 right-5 w-14 h-14 rounded-full shadow-lg justify-center items-center z-30"
+        {/* FAB */}
+        <TouchableOpacity
+          onPress={() => { setNewItemName(''); setIsAddItemOpen(true); }}
+          style={{ position: 'absolute', bottom: 96, right: 20 }}
+          activeOpacity={0.85}
         >
           <LinearGradient
-            colors={theme.gradient as [string, string, ...string[]]}
+            colors={theme.gradient as [string, string]}
             style={styles.fabGradient}
           >
-            <Plus size={24} color="white" />
+            <Plus size={26} color="white" />
           </LinearGradient>
         </TouchableOpacity>
 
-        {/* Add Item Dialog Modal */}
-        <Modal
-          visible={isAddItemOpen}
-          onRequestClose={() => setIsAddItemOpen(false)}
-          transparent
-          animationType="fade"
-        >
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} className="flex-1 justify-end bg-black/60">
-            <View className="bg-white dark:bg-slate-900 rounded-t-[2.5rem] p-6 pt-3 shadow-2xl border-t border-slate-200 dark:border-slate-800 max-h-[90%]">
-              
-              {/* Drag Handle */}
-              <View className="w-12 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full mx-auto mb-6" />
+        {/* ── Add Item Modal ── */}
+        <Modal visible={isAddItemOpen} onRequestClose={() => setIsAddItemOpen(false)} transparent animationType="slide">
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' }}>
+            <View style={{ backgroundColor: isDark ? '#0f1523' : '#ffffff', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, maxHeight: '90%' }}>
+              {/* Handle */}
+              <View style={{ width: 40, height: 4, backgroundColor: isDark ? '#334155' : '#e2e8f0', borderRadius: 2, alignSelf: 'center', marginBottom: 20 }} />
 
               {/* Header */}
-              <View className="flex-row justify-between items-center mb-6">
-                <View className="flex-row items-center gap-3">
-                  <View className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 items-center justify-center">
-                    <ShoppingBag size={24} color="#4f46e5" />
-                  </View>
-                  <View>
-                    <Text className="text-xl font-black text-slate-900 dark:text-white">Hızlı Ürün Ekle</Text>
-                    <Text className="text-xs text-slate-500 font-medium mt-0.5">Arka arkaya seri ekleyebilirsiniz</Text>
-                  </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <View>
+                  <Text style={{ fontSize: 18, fontWeight: '800', color: textPrimary }}>🛒 Ürün Ekle</Text>
+                  <Text style={{ fontSize: 12, color: textSecondary, marginTop: 2 }}>Hızlı ekle veya virgülle birden fazla ürün yaz.</Text>
                 </View>
-                <TouchableOpacity onPress={() => setIsAddItemOpen(false)} className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 items-center justify-center">
-                  <X size={18} color="#64748b" />
+                <TouchableOpacity onPress={() => setIsAddItemOpen(false)} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: isDark ? '#1e293b' : '#f1f5f9', alignItems: 'center', justifyContent: 'center' }}>
+                  <X size={16} color={textSecondary} />
                 </TouchableOpacity>
               </View>
 
-              {/* Input Area */}
-              <View className="flex-row items-center bg-slate-50 dark:bg-slate-950/50 border-2 border-slate-100 dark:border-slate-800 rounded-[2rem] p-1.5 mb-4 shadow-sm">
-                <TextInput 
-                  className="flex-1 text-slate-900 dark:text-white text-base font-semibold h-14 px-4"
-                  placeholder="Örn: 2 kg domates, 1 lt süt..."
-                  placeholderTextColor="#94a3b8"
+              {/* Input row */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderRadius: 20, borderWidth: 1.5, borderColor: isDark ? '#334155' : '#e2e8f0', paddingLeft: 16, paddingRight: 6, marginBottom: 12, gap: 8 }}>
+                <TextInput
+                  style={{ flex: 1, height: 52, fontSize: 15, fontWeight: '600', color: textPrimary }}
+                  placeholder="2kg domates, süt, ekmek..."
+                  placeholderTextColor={textMuted}
                   value={newItemName}
                   onChangeText={setNewItemName}
-                  autoFocus={true}
+                  autoFocus
                   onSubmitEditing={() => handleAddItem()}
                 />
-                
+                <TouchableOpacity
+                  onPress={toggleVoice}
+                  style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: isDark ? '#0f1523' : 'white', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Mic size={18} color={isListening ? '#ef4444' : textSecondary} />
+                </TouchableOpacity>
                 {isAiProcessing ? (
-                  <View className="px-4">
+                  <View style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
                     <ActivityIndicator size="small" color={theme.solidBg} />
                   </View>
                 ) : (
-                  <TouchableOpacity onPress={toggleVoice} className="w-12 h-12 rounded-full items-center justify-center bg-white dark:bg-slate-800 mr-2 shadow-sm">
-                    <Mic size={20} color={isListening ? "#ef4444" : "#64748b"} />
+                  <TouchableOpacity
+                    onPress={() => handleAddItem()}
+                    disabled={!newItemName.trim()}
+                    style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: theme.solidBg, alignItems: 'center', justifyContent: 'center', opacity: newItemName.trim() ? 1 : 0.5 }}
+                  >
+                    <Plus size={22} color="white" />
                   </TouchableOpacity>
                 )}
-
-                <TouchableOpacity 
-                  onPress={() => handleAddItem()} 
-                  className="w-14 h-14 rounded-full items-center justify-center shadow-md transition-all"
-                  style={{ backgroundColor: isAddSuccess ? '#10b981' : theme.solidBg }}
-                  disabled={(!newItemName.trim() && !isAddSuccess) || isAiProcessing}
-                >
-                  {isAddSuccess ? (
-                    <Check size={28} color="white" />
-                  ) : (
-                    <Plus size={28} color="white" />
-                  )}
-                </TouchableOpacity>
               </View>
 
-              {/* Autocomplete Suggestions */}
+              {/* Suggestions */}
               {suggestions.length > 0 && (
-                <View className="border border-slate-100 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 shadow-lg mb-4 overflow-hidden">
+                <View style={{ borderWidth: 1, borderColor: isDark ? '#1e293b' : '#e2e8f0', borderRadius: 16, backgroundColor: isDark ? '#0f1523' : 'white', overflow: 'hidden', marginBottom: 12 }}>
                   {suggestions.map((s, i) => (
-                    <TouchableOpacity 
-                      key={i} 
-                      onPress={() => {
-                        handleAddItem(s);
+                    <TouchableOpacity
+                      key={i}
+                      onPress={() => handleAddItem(s)}
+                      style={{
+                        flexDirection: 'row', alignItems: 'center', gap: 10,
+                        paddingHorizontal: 16, paddingVertical: 12,
+                        borderBottomWidth: i < suggestions.length - 1 ? 1 : 0,
+                        borderBottomColor: isDark ? '#1e293b' : '#f1f5f9'
                       }}
-                      className="w-full px-4 py-3 flex-row items-center border-b border-slate-50 dark:border-slate-800 last:border-0"
                     >
-                      <Search size={14} color="#94a3b8" className="mr-2" />
-                      <Text className="text-sm font-semibold text-slate-700 dark:text-slate-300">{s}</Text>
-                      <ChevronRight size={14} color="#cbd5e1" className="ml-auto" />
+                      <Search size={14} color={textMuted} />
+                      <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: textPrimary }}>{s}</Text>
+                      <ChevronRight size={14} color={textMuted} />
                     </TouchableOpacity>
                   ))}
                 </View>
               )}
 
-              {/* Category Selector (For single items manual selection) */}
+              {/* Category selector */}
               {!newItemName.includes(',') && (
-                <View className="mb-4">
-                  <TouchableOpacity 
+                <View>
+                  <TouchableOpacity
                     onPress={() => setIsCategorySelectorOpen(!isCategorySelectorOpen)}
-                    className="flex-row items-center bg-slate-50 dark:bg-slate-800 p-3 rounded-2xl border border-slate-100 dark:border-slate-700"
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: isDark ? '#1e293b' : '#f8fafc', padding: 12, borderRadius: 14, borderWidth: 1, borderColor: isDark ? '#334155' : '#e2e8f0' }}
                   >
-                    <View 
-                      className="w-7 h-7 rounded-lg items-center justify-center mr-2.5" 
-                      style={{ backgroundColor: CATEGORY_CONFIG[selectedCategory].bgColor }}
-                    >
-                      {(() => {
-                        const CatIcon = CATEGORY_CONFIG[selectedCategory].icon;
-                        return <CatIcon size={14} color={CATEGORY_CONFIG[selectedCategory].color} />;
-                      })()}
+                    <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: CATEGORY_CONFIG[selectedCategory].lightBg, alignItems: 'center', justifyContent: 'center' }}>
+                      {(() => { const CatIcon = CATEGORY_CONFIG[selectedCategory].icon; return <CatIcon size={14} color={CATEGORY_CONFIG[selectedCategory].solidText} />; })()}
                     </View>
-                    <Text className="text-slate-700 dark:text-slate-200 font-bold text-sm flex-1">{selectedCategory}</Text>
-                    <Text className="text-slate-400 font-bold text-xs">{isCategorySelectorOpen ? 'Kapat ▲' : 'Değiştir ▼'}</Text>
+                    <Text style={{ flex: 1, fontWeight: '700', fontSize: 13, color: textPrimary }}>{selectedCategory}</Text>
+                    <Text style={{ color: textMuted, fontSize: 11, fontWeight: '600' }}>{isCategorySelectorOpen ? '▲' : '▼'}</Text>
                   </TouchableOpacity>
 
                   {isCategorySelectorOpen && (
-                    <ScrollView style={{ maxHeight: 160 }} className="mt-2 bg-slate-50 dark:bg-slate-800/80 p-2 rounded-2xl border border-slate-100 dark:border-slate-700/50">
-                      <View className="flex-row flex-wrap justify-between">
+                    <ScrollView style={{ maxHeight: 150, marginTop: 8, backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderRadius: 14, borderWidth: 1, borderColor: isDark ? '#334155' : '#e2e8f0', padding: 8 }}>
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                         {CATEGORIES.map(cat => {
                           const config = CATEGORY_CONFIG[cat];
                           const CatIcon = config.icon;
                           const isSelected = selectedCategory === cat;
                           return (
-                            <TouchableOpacity 
-                              key={cat} 
+                            <TouchableOpacity
+                              key={cat}
                               onPress={() => { setSelectedCategory(cat); setIsCategorySelectorOpen(false); }}
-                              className="items-center p-2 rounded-xl mb-1.5"
-                              style={{ width: '31%', backgroundColor: isSelected ? config.bgColor : 'transparent' }}
+                              style={{ alignItems: 'center', paddingVertical: 6, paddingHorizontal: 8, borderRadius: 10, backgroundColor: isSelected ? config.lightBg : 'transparent', width: '30%' }}
                             >
-                              <View className="w-9 h-9 rounded-full items-center justify-center mb-1" style={{ backgroundColor: isSelected ? 'rgba(255,255,255,0.4)' : config.bgColor }}>
-                                <CatIcon size={16} color={isSelected ? config.color : config.color} />
+                              <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: isSelected ? config.solidBg : config.lightBg, alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+                                <CatIcon size={15} color={isSelected ? 'white' : config.solidText} />
                               </View>
-                              <Text className={`text-[10px] font-bold text-center ${isSelected ? 'text-slate-800 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`} numberOfLines={1}>{cat}</Text>
+                              <Text style={{ fontSize: 9, fontWeight: '700', textAlign: 'center', color: isSelected ? config.solidText : textMuted }} numberOfLines={2}>{cat}</Text>
                             </TouchableOpacity>
                           );
                         })}
@@ -756,361 +674,400 @@ export default function ShoppingScreen() {
                   )}
                 </View>
               )}
-
             </View>
           </KeyboardAvoidingView>
         </Modal>
-
       </View>
     );
-  }
+  };
 
-  // ─── LISTS RENDERING HELPER ───
+  // ─── HOME VIEW ───────────────────────────────────────────────────────────────
   const renderListsView = (isSplit: boolean = false) => {
     const totalPending = lists.reduce((s, l) => s + (l.items || []).length, 0);
     const totalBought  = lists.reduce((s, l) => s + (l.boughtItems || []).length, 0);
 
     return (
       <View style={{ flex: 1 }}>
-        {/* Header */}
-        <View className="px-5 pt-3 pb-3 flex-row justify-between items-center bg-white/70 dark:bg-slate-900/60 border-b border-slate-200/40 dark:border-slate-800/40">
-          {!isSplit && (
-            <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 items-center justify-center bg-white dark:bg-slate-800 rounded-full shadow-sm">
-               <ChevronLeft size={22} color="#4f46e5" />
-            </TouchableOpacity>
-          )}
-          <View className="items-center flex-1">
-             <Text className="text-lg font-black text-slate-800 dark:text-white">Alışveriş Listeleri</Text>
-             <Text className="text-[9px] text-slate-450 font-bold uppercase tracking-widest">İhtiyaçlarını Organize Et</Text>
+        <ScrollView contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+          {/* Header */}
+          <SafeAreaView edges={['top']} />
+          <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+              <LinearGradient
+                colors={['#6366f1', '#7c3aed']}
+                style={{ width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', shadowColor: '#6366f1', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 6 }}
+              >
+                <ShoppingCart size={24} color="white" />
+              </LinearGradient>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 24, fontWeight: '800', letterSpacing: -0.5, color: textPrimary }}>
+                  Alışveriş{' '}
+                  <Text style={{ color: '#6366f1' }}>Listeleri</Text>
+                </Text>
+                <Text style={{ fontSize: 12, color: textSecondary, marginTop: 2 }}>İhtiyaçlarını organize et.</Text>
+              </View>
+            </View>
           </View>
-          <TouchableOpacity 
-            onPress={() => {
-              setEditingList(null);
-              setNewListName('');
-              setNewListIcon('ShoppingCart');
-              setNewListColor('indigo');
-              setIsCreateModalOpen(true);
-            }}
-            className="w-10 h-10 rounded-full items-center justify-center shadow-md bg-indigo-600"
-          >
-            <Plus size={22} color="white" />
-          </TouchableOpacity>
-        </View>
 
-        <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
-           
-           {/* Stats Panel */}
-           {lists.length > 0 && !isSplit && (
-             <View className="flex-row justify-between mb-6 gap-3">
-               {[
-                 { label: 'Liste', val: lists.length, gradient: ['#6366f1', '#4f46e5'], emoji: '📋' },
-                 { label: 'Alınacak', val: totalPending, gradient: ['#f59e0b', '#d97706'], emoji: '🛒' },
-                 { label: 'Alındı', val: totalBought, gradient: ['#10b981', '#059669'], emoji: '✅' },
-               ].map(s => (
-                 <View key={s.label} className="flex-1 rounded-[1.2rem] shadow-md overflow-hidden">
-                   <LinearGradient
-                     colors={s.gradient as [string, string, ...string[]]}
-                     style={{ padding: 12, alignItems: 'center' }}
-                   >
-                     <Text className="text-xl mb-0.5">{s.emoji}</Text>
-                     <Text className="text-lg font-black text-white">{s.val}</Text>
-                     <Text className="text-[8px] font-bold text-white/90 uppercase tracking-widest">{s.label}</Text>
-                   </LinearGradient>
-                 </View>
-               ))}
-             </View>
-           )}
+          {/* Stats */}
+          {lists.length > 0 && (
+            <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                {[
+                  { label: 'Liste', val: lists.length, gradient: ['#6366f1', '#7c3aed'] as [string,string], emoji: '📋' },
+                  { label: 'Alınacak', val: totalPending, gradient: ['#f59e0b', '#d97706'] as [string,string], emoji: '🛒' },
+                  { label: 'Alındı', val: totalBought, gradient: ['#10b981', '#059669'] as [string,string], emoji: '✅' },
+                ].map(s => (
+                  <LinearGradient
+                    key={s.label}
+                    colors={s.gradient}
+                    style={{ flex: 1, borderRadius: 20, padding: 14, alignItems: 'center', gap: 2, shadowColor: s.gradient[0], shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 }}
+                  >
+                    <Text style={{ fontSize: 22 }}>{s.emoji}</Text>
+                    <Text style={{ fontSize: 22, fontWeight: '800', color: 'white' }}>{s.val}</Text>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.8)', textTransform: 'uppercase', letterSpacing: 1 }}>{s.label}</Text>
+                  </LinearGradient>
+                ))}
+              </View>
+            </View>
+          )}
 
-           {lists.length === 0 ? (
-             <View className="items-center justify-center mt-20 bg-white/70 dark:bg-slate-900/60 p-8 rounded-[2.5rem] shadow-sm border border-slate-200/50">
-               <View className="w-16 h-16 bg-emerald-50 dark:bg-emerald-950/40 rounded-full items-center justify-center mb-4 border border-emerald-100 dark:border-emerald-900">
-                  <ShoppingCart size={32} color="#10b981" />
-               </View>
-               <Text className="text-slate-700 dark:text-slate-200 text-base font-black">Henüz bir alışveriş listeniz yok.</Text>
-               <Text className="text-slate-400 text-center text-xs mt-1 mb-5">Hemen ilk alışveriş listenizi oluşturun ve ihtiyaçlarınızı planlayın.</Text>
-               <TouchableOpacity 
-                 onPress={() => setIsCreateModalOpen(true)}
-                 className="bg-indigo-600 px-6 py-3 rounded-full shadow-md"
-               >
-                  <Text className="text-white font-bold text-sm">Liste Oluştur</Text>
-               </TouchableOpacity>
-             </View>
-           ) : (
-             <View style={isSplit ? { gap: 10 } : { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-               {sortedLists.map((list, index) => {
-                 const items = list.items || [];
-                 const boughtItems = list.boughtItems || [];
-                 const totalCount = items.length + boughtItems.length;
-                 const progress = totalCount === 0 ? 0 : (boughtItems.length / totalCount) * 100;
-                 const theme = LIST_THEMES[list.colorId || 'indigo'] || LIST_THEMES.indigo;
-                 const ListIcon = LIST_ICONS[list.icon || 'ShoppingCart'] || ShoppingCart;
-                 const isCurrentlySelected = selectedListId === list.id;
+          {lists.length === 0 ? (
+            /* Empty State */
+            <View style={{ alignItems: 'center', justifyContent: 'center', paddingTop: 60, paddingHorizontal: 40 }}>
+              <View style={{ position: 'relative', marginBottom: 24 }}>
+                <View style={{ position: 'absolute', width: 100, height: 100, borderRadius: 50, backgroundColor: '#6366f1', opacity: 0.15, alignSelf: 'center', top: -4 }} />
+                <LinearGradient
+                  colors={['#6366f1', '#7c3aed']}
+                  style={{ width: 96, height: 96, borderRadius: 28, alignItems: 'center', justifyContent: 'center', shadowColor: '#6366f1', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 16, elevation: 8 }}
+                >
+                  <ShoppingCart size={44} color="white" />
+                </LinearGradient>
+              </View>
+              <Text style={{ fontSize: 22, fontWeight: '800', color: textPrimary, textAlign: 'center', marginBottom: 8 }}>Alışverişe Başla</Text>
+              <Text style={{ fontSize: 14, color: textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: 28 }}>
+                Haftalık market, pazar veya özel günler için renkli listeler oluşturun.
+              </Text>
+              <TouchableOpacity
+                onPress={() => setIsCreateModalOpen(true)}
+                activeOpacity={0.85}
+              >
+                <LinearGradient
+                  colors={['#6366f1', '#7c3aed']}
+                  style={{ borderRadius: 20, paddingHorizontal: 28, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', gap: 8, shadowColor: '#6366f1', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 6 }}
+                >
+                  <Plus size={20} color="white" />
+                  <Text style={{ color: 'white', fontWeight: '800', fontSize: 16 }}>İlk Listeyi Oluştur</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={{ paddingHorizontal: 20 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <Text style={{ fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.5, color: textMuted }}>Listelerim</Text>
+                <TouchableOpacity
+                  onPress={() => { setEditingList(null); setNewListName(''); setNewListIcon('ShoppingCart'); setNewListColor('indigo'); setIsCreateModalOpen(true); }}
+                  activeOpacity={0.85}
+                >
+                  <LinearGradient
+                    colors={['#6366f1', '#7c3aed']}
+                    style={{ borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                  >
+                    <Plus size={14} color="white" />
+                    <Text style={{ color: 'white', fontWeight: '700', fontSize: 12 }}>Yeni Liste</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
 
-                 return (
-                   <TouchableOpacity 
-                     key={list.id} 
-                     onPress={() => setSelectedListId(list.id)}
-                     className="rounded-[1.5rem] shadow-md overflow-hidden"
-                     style={isSplit ? { width: '100%', borderWidth: isCurrentlySelected ? 2 : 0, borderColor: isCurrentlySelected ? '#4f46e5' : 'transparent', marginBottom: 10 } : { width: '48%', marginBottom: 16 }}
-                   >
-                     <LinearGradient
-                       colors={theme.gradient as [string, string, ...string[]]}
-                       style={{ padding: 14, minHeight: isSplit ? 90 : 145, justifyContent: 'space-between' }}
-                     >
-                       {/* Card Top Row */}
-                       <View className="flex-row justify-between items-center">
-                          <View className="w-8 h-8 bg-white/20 rounded-xl items-center justify-center">
-                             <ListIcon size={16} color="white" />
+              {/* List grid (2-col like web) */}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
+                {sortedLists.map((list, index) => {
+                  const items = list.items || [];
+                  const boughtItems = list.boughtItems || [];
+                  const totalCount = items.length + boughtItems.length;
+                  const progress = totalCount === 0 ? 0 : Math.round((boughtItems.length / totalCount) * 100);
+                  const done = progress === 100 && totalCount > 0;
+                  const theme = LIST_THEMES[list.colorId || 'indigo'] || LIST_THEMES.indigo;
+                  const ListIcon = LIST_ICONS[list.icon || 'ShoppingCart'] || ShoppingCart;
+
+                  return (
+                    <TouchableOpacity
+                      key={list.id}
+                      onPress={() => { setSelectedListId(list.id); setDetailTab('pending'); }}
+                      activeOpacity={0.85}
+                      style={{ width: (winWidth - 52) / 2, borderRadius: 24, overflow: 'hidden', shadowColor: theme.gradient[0], shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 5 }}
+                    >
+                      <LinearGradient
+                        colors={theme.gradient as [string, string]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={{ minHeight: 170, padding: 16, justifyContent: 'space-between' }}
+                      >
+                        {/* Decorative pattern */}
+                        <View style={{ position: 'absolute', top: -20, right: -20, width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.1)' }} />
+                        <View style={{ position: 'absolute', bottom: -15, left: -15, width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255,255,255,0.07)' }} />
+
+                        {/* Top row */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}>
+                            <ListIcon size={20} color="white" />
                           </View>
-                          <TouchableOpacity 
-                            onPress={() => {
-                              setSelectedMenuList(list);
-                              setIsOptionsModalOpen(true);
-                            }}
-                            className="w-7 h-7 rounded-full bg-white/10 items-center justify-center"
+                          <TouchableOpacity
+                            onPress={() => { setSelectedMenuList(list); setIsOptionsModalOpen(true); }}
+                            style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}
                           >
-                             <MoreVertical size={13} color="white" />
+                            <MoreVertical size={14} color="white" />
                           </TouchableOpacity>
-                       </View>
-                       
-                       {/* Card Info */}
-                       <View className="mt-3">
-                          <Text className="text-white font-extrabold text-[14px] leading-tight mb-0.5" numberOfLines={1}>
-                            {list.name}
-                          </Text>
-                          <Text className="text-white/80 text-[9px] font-bold">
-                            {items.length} Bekleyen • {boughtItems.length} Alınan
-                          </Text>
-                       </View>
-                     </LinearGradient>
-                   </TouchableOpacity>
-                 );
-               })}
-             </View>
-           )}
+                        </View>
+
+                        {/* Bottom info */}
+                        <View>
+                          <Text style={{ fontSize: 18, fontWeight: '800', color: 'white', marginBottom: 4 }} numberOfLines={1}>{list.name}</Text>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
+                            <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', fontWeight: '600' }}>
+                              {items.length} ürün bekliyor
+                            </Text>
+                            {done
+                              ? <Text style={{ fontSize: 11, color: 'white', fontWeight: '700' }}>✅ Tamamlandı!</Text>
+                              : <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', fontWeight: '600' }}>{boughtItems.length}/{totalCount} alındı</Text>
+                            }
+                          </View>
+                          {/* Progress bar */}
+                          <View style={{ height: 6, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 3, overflow: 'hidden' }}>
+                            <View style={{ height: '100%', borderRadius: 3, backgroundColor: 'white', width: `${progress}%` }} />
+                          </View>
+                        </View>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  );
+                })}
+
+                {/* Add new card (dashed, web-style) */}
+                <TouchableOpacity
+                  onPress={() => { setEditingList(null); setNewListName(''); setNewListIcon('ShoppingCart'); setNewListColor('indigo'); setIsCreateModalOpen(true); }}
+                  activeOpacity={0.75}
+                  style={{
+                    width: (winWidth - 52) / 2, minHeight: 170, borderRadius: 24,
+                    borderWidth: 2, borderColor: isDark ? 'rgba(99,102,241,0.4)' : '#c7d2fe',
+                    borderStyle: 'dashed',
+                    backgroundColor: isDark ? 'rgba(99,102,241,0.05)' : 'rgba(238,242,255,0.6)',
+                    alignItems: 'center', justifyContent: 'center', gap: 10
+                  }}
+                >
+                  <View style={{ width: 48, height: 48, borderRadius: 24, borderWidth: 2, borderStyle: 'dashed', borderColor: isDark ? 'rgba(99,102,241,0.5)' : '#a5b4fc', alignItems: 'center', justifyContent: 'center' }}>
+                    <Plus size={20} color={isDark ? '#818cf8' : '#6366f1'} />
+                  </View>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: isDark ? '#818cf8' : '#6366f1' }}>Yeni Liste</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Mobile FAB */}
+          {lists.length > 0 && (
+            <View style={{ paddingHorizontal: 20, marginTop: 8 }}>
+              <TouchableOpacity
+                onPress={() => { setEditingList(null); setNewListName(''); setNewListIcon('ShoppingCart'); setNewListColor('indigo'); setIsCreateModalOpen(true); }}
+                style={{ position: 'absolute', bottom: -40, right: 20 }}
+              >
+                {/* Handled by the dashed add card above */}
+              </TouchableOpacity>
+            </View>
+          )}
         </ScrollView>
       </View>
     );
   };
 
-  // ─── DETAIL VIEW (SINGLE COLUMN MODE) ───
+  // ─── MAIN RENDER ─────────────────────────────────────────────────────────────
   if (selectedList && !isTabletLandscape) {
     return renderDetailView();
   }
 
-  // ─── MAIN LAYOUT RENDER ───
   return (
-    <LinearGradient
-      colors={['#e0e7ff', '#f5f3ff', '#fae8ff']}
-      style={{ flex: 1 }}
-    >
-      <SafeAreaView className="flex-1">
-        <Stack.Screen options={{ headerShown: false }} />
-        
-        {isTabletLandscape ? (
-          <View style={{ flex: 1, flexDirection: 'row' }}>
-            {/* Left Column: List of Lists */}
-            <View style={{ width: 300, borderRightWidth: 1, borderRightColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', backgroundColor: 'rgba(255,255,255,0.1)' }}>
-              {renderListsView(true)}
-            </View>
+    <View style={{ flex: 1, backgroundColor: isDark ? '#070b14' : '#eef2ff' }}>
+      {/* Background blobs (web-style) */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <View style={{ position: 'absolute', top: -40, left: -20, width: 200, height: 200, borderRadius: 100, backgroundColor: isDark ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.15)', transform: [{ scale: 2 }] }} />
+        <View style={{ position: 'absolute', top: '20%', right: -40, width: 180, height: 180, borderRadius: 90, backgroundColor: isDark ? 'rgba(217,70,239,0.06)' : 'rgba(217,70,239,0.1)', transform: [{ scale: 2 }] }} />
+        <View style={{ position: 'absolute', bottom: '10%', left: '20%', width: 160, height: 160, borderRadius: 80, backgroundColor: isDark ? 'rgba(124,58,237,0.06)' : 'rgba(124,58,237,0.1)', transform: [{ scale: 2 }] }} />
+      </View>
 
-            {/* Right Column: Selected List Detail */}
-            <View style={{ flex: 1 }}>
-              {selectedList ? (
-                renderDetailView()
-              ) : (
-                <View className="flex-1 items-center justify-center">
-                  <ShoppingCart size={48} color="#6366f1" style={{ opacity: 0.4 }} />
-                  <Text className="font-bold text-slate-700 dark:text-slate-350 text-sm mt-3">Liste Seçilmedi</Text>
-                </View>
-              )}
-            </View>
+      <Stack.Screen options={{ headerShown: false }} />
+
+      {isTabletLandscape ? (
+        <View style={{ flex: 1, flexDirection: 'row' }}>
+          <View style={{ width: 320, borderRightWidth: 1, borderRightColor: cardBorder }}>
+            {renderListsView(true)}
           </View>
-        ) : (
-          renderListsView(false)
-        )}
+          <View style={{ flex: 1 }}>
+            {selectedList ? renderDetailView() : (
+              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                <ShoppingCart size={48} color={textMuted} style={{ opacity: 0.4 }} />
+                <Text style={{ color: textMuted, fontWeight: '700', fontSize: 14, marginTop: 12 }}>Liste Seçilmedi</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      ) : (
+        renderListsView(false)
+      )}
 
-        {/* Create / Edit List Dialog Modal */}
-        <Modal
-          visible={isCreateModalOpen}
-          onRequestClose={() => setIsCreateModalOpen(false)}
-          transparent
-          animationType="fade"
-        >
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} className="flex-1 justify-end bg-black/50">
-            <View className="bg-white dark:bg-slate-900 rounded-t-[2.5rem] p-6 shadow-2xl border-t border-slate-200 dark:border-slate-850">
-               
-               {/* Modal Header */}
-               <View className="flex-row justify-between items-center mb-5 pb-3 border-b border-slate-100 dark:border-slate-800">
-                  <Text className="text-lg font-black text-slate-800 dark:text-white">
-                    {editingList ? '✏️ Listeyi Düzenle' : '🛒 Yeni Liste Oluştur'}
-                  </Text>
-                  <TouchableOpacity onPress={() => setIsCreateModalOpen(false)} className="p-1">
-                     <X size={20} color="#64748b" />
-                  </TouchableOpacity>
-               </View>
+      {/* ── Create / Edit List Modal ── */}
+      <Modal visible={isCreateModalOpen} onRequestClose={() => setIsCreateModalOpen(false)} transparent animationType="slide">
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' }}>
+          <View style={{ backgroundColor: isDark ? '#0f1523' : 'white', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24 }}>
+            <View style={{ width: 40, height: 4, backgroundColor: isDark ? '#334155' : '#e2e8f0', borderRadius: 2, alignSelf: 'center', marginBottom: 20 }} />
 
-               {/* Name Input */}
-               <Text className="text-slate-500 font-bold text-[9px] uppercase tracking-wider mb-2 ml-1">Liste Adı</Text>
-               <TextInput 
-                 className="bg-slate-50 dark:bg-slate-855 border border-slate-200 dark:border-slate-700 px-4 py-3 rounded-2xl text-slate-900 dark:text-white text-sm font-semibold mb-4 h-12"
-                 placeholder="Örn: Haftalık Market..."
-                 placeholderTextColor="#94a3b8"
-                 value={newListName}
-                 onChangeText={setNewListName}
-               />
-
-               {/* Icon Choice */}
-               <Text className="text-slate-500 font-bold text-[9px] uppercase tracking-wider mb-2 ml-1">İkon Seç</Text>
-               <View className="flex-row justify-between mb-4">
-                  {Object.keys(LIST_ICONS).map(iconName => {
-                    const IconComp = LIST_ICONS[iconName];
-                    const isSelected = newListIcon === iconName;
-                    return (
-                      <TouchableOpacity 
-                        key={iconName}
-                        onPress={() => setNewListIcon(iconName)}
-                        className={`p-2.5 rounded-xl border border-2 active:scale-95 ${isSelected ? 'bg-indigo-50 dark:bg-indigo-900 border-indigo-500 scale-105 shadow-md' : 'bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700'}`}
-                      >
-                         <IconComp size={18} color={isSelected ? '#6366f1' : '#64748b'} />
-                      </TouchableOpacity>
-                    );
-                  })}
-               </View>
-
-               {/* Color Choice */}
-               <Text className="text-slate-500 font-bold text-[9px] uppercase tracking-wider mb-2 ml-1">Tema Rengi Seç</Text>
-               <View className="flex-row justify-between mb-6">
-                  {Object.keys(LIST_THEMES).map(colorKey => {
-                    const theme = LIST_THEMES[colorKey];
-                    const isSelected = newListColor === colorKey;
-                    return (
-                      <TouchableOpacity 
-                        key={colorKey}
-                        onPress={() => setNewListColor(colorKey)}
-                        className={`w-9 h-9 rounded-full border-2 items-center justify-center ${isSelected ? 'border-slate-800 dark:border-white scale-110' : 'border-transparent'}`}
-                      >
-                         <View className="w-7 h-7 rounded-full" style={{ backgroundColor: theme.solidBg }} />
-                      </TouchableOpacity>
-                    );
-                  })}
-               </View>
-
-               {/* Save Button */}
-               <TouchableOpacity 
-                 onPress={handleSaveList}
-                 className="bg-indigo-600 rounded-2xl py-3.5 items-center shadow-md mb-4"
-               >
-                  <Text className="text-white font-bold text-sm">
-                    {editingList ? 'Kaydet' : 'Oluştur'}
-                  </Text>
-               </TouchableOpacity>
-
-            </View>
-          </KeyboardAvoidingView>
-        </Modal>
-
-        {/* List Options Bottom Sheet Modal */}
-        <Modal
-          animationType="fade"
-          transparent={true}
-          visible={isOptionsModalOpen}
-          onRequestClose={() => setIsOptionsModalOpen(false)}
-        >
-          <View className="flex-1 justify-end bg-black/40">
-            <View className="bg-white dark:bg-slate-900 rounded-t-[2rem] p-5 shadow-2xl">
-              <Text className="text-slate-800 dark:text-white font-black text-center text-sm mb-4">
-                {selectedMenuList?.name || 'Liste Seçenekleri'}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: textPrimary }}>
+                {editingList ? '✏️ Listeyi Düzenle' : '🛒 Yeni Liste Oluştur'}
               </Text>
-              
-              {selectedMenuList && (
-                <View className="space-y-1">
-                  
-                  {/* Move Up */}
-                  {sortedLists.findIndex(l => l.id === selectedMenuList.id) > 0 && (
-                    <TouchableOpacity 
-                      onPress={() => handleMoveList(selectedMenuList, 'up')}
-                      className="flex-row items-center py-3 px-4 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800"
-                    >
-                      <ChevronUp size={18} color="#6366f1" className="mr-3" />
-                      <Text className="text-slate-700 dark:text-slate-350 font-bold text-xs">Yukarı Taşı</Text>
-                    </TouchableOpacity>
-                  )}
-
-                  {/* Move Down */}
-                  {sortedLists.findIndex(l => l.id === selectedMenuList.id) < sortedLists.length - 1 && (
-                    <TouchableOpacity 
-                      onPress={() => handleMoveList(selectedMenuList, 'down')}
-                      className="flex-row items-center py-3 px-4 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800"
-                    >
-                      <ChevronDown size={18} color="#6366f1" className="mr-3" />
-                      <Text className="text-slate-700 dark:text-slate-350 font-bold text-xs">Aşağı Taşı</Text>
-                    </TouchableOpacity>
-                  )}
-
-                  {/* Edit */}
-                  <TouchableOpacity 
-                    onPress={() => {
-                      setNewListName(selectedMenuList.name);
-                      setNewListIcon(selectedMenuList.icon);
-                      setNewListColor(selectedMenuList.colorId || 'indigo');
-                      setEditingList(selectedMenuList);
-                      setIsOptionsModalOpen(false);
-                      setIsCreateModalOpen(true);
-                    }}
-                    className="flex-row items-center py-3 px-4 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800"
-                  >
-                    <Edit2 size={18} color="#64748b" className="mr-3" />
-                    <Text className="text-slate-700 dark:text-slate-300 font-bold text-xs">Düzenle</Text>
-                  </TouchableOpacity>
-
-                  {/* Delete */}
-                  <TouchableOpacity 
-                    onPress={() => handleDeleteList(selectedMenuList.id)}
-                    className="flex-row items-center py-3 px-4 rounded-xl bg-red-50 dark:bg-red-950/20"
-                  >
-                    <Trash2 size={18} color="#ef4444" className="mr-3" />
-                    <Text className="text-red-500 font-bold text-xs">Sil</Text>
-                  </TouchableOpacity>
-                  
-                  {/* Cancel */}
-                  <TouchableOpacity 
-                    onPress={() => setIsOptionsModalOpen(false)}
-                    className="mt-2 py-3 bg-slate-100 dark:bg-slate-800 rounded-xl items-center"
-                  >
-                    <Text className="text-slate-650 dark:text-slate-400 font-bold text-xs">İptal</Text>
-                  </TouchableOpacity>
-
-                </View>
-              )}
+              <TouchableOpacity onPress={() => setIsCreateModalOpen(false)} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: isDark ? '#1e293b' : '#f1f5f9', alignItems: 'center', justifyContent: 'center' }}>
+                <X size={16} color={textSecondary} />
+              </TouchableOpacity>
             </View>
-          </View>
-        </Modal>
 
-      </SafeAreaView>
-    </LinearGradient>
+            {/* Name input */}
+            <Text style={{ fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, color: textMuted, marginBottom: 8 }}>Liste Adı</Text>
+            <TextInput
+              style={{ backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderWidth: 1.5, borderColor: isDark ? '#334155' : '#e2e8f0', borderRadius: 14, paddingHorizontal: 16, height: 52, fontSize: 15, fontWeight: '600', color: textPrimary, marginBottom: 20 }}
+              placeholder="Örn: Haftalık Market..."
+              placeholderTextColor={textMuted}
+              value={newListName}
+              onChangeText={setNewListName}
+            />
+
+            {/* Icon picker */}
+            <Text style={{ fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, color: textMuted, marginBottom: 10 }}>İkon</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
+              {Object.keys(LIST_ICONS).map(iconName => {
+                const IconComp = LIST_ICONS[iconName];
+                const isSelected = newListIcon === iconName;
+                return (
+                  <TouchableOpacity
+                    key={iconName}
+                    onPress={() => setNewListIcon(iconName)}
+                    style={{ padding: 12, borderRadius: 14, borderWidth: 2, backgroundColor: isSelected ? (isDark ? 'rgba(99,102,241,0.2)' : '#eef2ff') : (isDark ? '#1e293b' : '#f8fafc'), borderColor: isSelected ? '#6366f1' : (isDark ? '#334155' : '#e2e8f0') }}
+                  >
+                    <IconComp size={18} color={isSelected ? '#6366f1' : textSecondary} />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Color picker */}
+            <Text style={{ fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, color: textMuted, marginBottom: 10 }}>Tema Rengi</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 24 }}>
+              {Object.entries(LIST_THEMES).map(([colorKey, theme]) => {
+                const isSelected = newListColor === colorKey;
+                return (
+                  <TouchableOpacity
+                    key={colorKey}
+                    onPress={() => setNewListColor(colorKey)}
+                    style={{ alignItems: 'center', gap: 4 }}
+                  >
+                    <View style={{
+                      width: 40, height: 40, borderRadius: 20,
+                      backgroundColor: theme.solidBg,
+                      borderWidth: isSelected ? 3 : 0,
+                      borderColor: isDark ? 'white' : '#0f172a',
+                      transform: [{ scale: isSelected ? 1.15 : 1 }]
+                    }} />
+                    <Text style={{ fontSize: 9, fontWeight: '700', color: textMuted }}>{theme.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Save button */}
+            <TouchableOpacity onPress={handleSaveList} activeOpacity={0.85}>
+              <LinearGradient
+                colors={['#6366f1', '#7c3aed']}
+                style={{ borderRadius: 16, paddingVertical: 16, alignItems: 'center', shadowColor: '#6366f1', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 5 }}
+              >
+                <Text style={{ color: 'white', fontWeight: '800', fontSize: 16 }}>
+                  {editingList ? 'Kaydet' : 'Oluştur'}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ── List Options Bottom Sheet ── */}
+      <Modal animationType="slide" transparent visible={isOptionsModalOpen} onRequestClose={() => setIsOptionsModalOpen(false)}>
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <View style={{ backgroundColor: isDark ? '#0f1523' : 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 }}>
+            <View style={{ width: 40, height: 4, backgroundColor: isDark ? '#334155' : '#e2e8f0', borderRadius: 2, alignSelf: 'center', marginBottom: 16 }} />
+            <Text style={{ fontSize: 15, fontWeight: '800', color: textPrimary, textAlign: 'center', marginBottom: 16 }}>
+              {selectedMenuList?.name || 'Liste Seçenekleri'}
+            </Text>
+
+            {selectedMenuList && (
+              <View style={{ gap: 4 }}>
+                {sortedLists.findIndex(l => l.id === selectedMenuList.id) > 0 && (
+                  <TouchableOpacity onPress={() => handleMoveList(selectedMenuList, 'up')} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12 }}>
+                    <ChevronUp size={18} color="#6366f1" />
+                    <Text style={{ color: textPrimary, fontWeight: '700', fontSize: 14 }}>Yukarı Taşı</Text>
+                  </TouchableOpacity>
+                )}
+                {sortedLists.findIndex(l => l.id === selectedMenuList.id) < sortedLists.length - 1 && (
+                  <TouchableOpacity onPress={() => handleMoveList(selectedMenuList, 'down')} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12 }}>
+                    <ChevronDown size={18} color="#6366f1" />
+                    <Text style={{ color: textPrimary, fontWeight: '700', fontSize: 14 }}>Aşağı Taşı</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  onPress={() => { setNewListName(selectedMenuList.name); setNewListIcon(selectedMenuList.icon); setNewListColor(selectedMenuList.colorId || 'indigo'); setEditingList(selectedMenuList); setIsOptionsModalOpen(false); setIsCreateModalOpen(true); }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12 }}
+                >
+                  <Edit2 size={18} color={textSecondary} />
+                  <Text style={{ color: textPrimary, fontWeight: '700', fontSize: 14 }}>Düzenle</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handleDeleteList(selectedMenuList.id)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, backgroundColor: isDark ? 'rgba(239,68,68,0.1)' : '#fff1f2' }}
+                >
+                  <Trash2 size={18} color="#ef4444" />
+                  <Text style={{ color: '#ef4444', fontWeight: '700', fontSize: 14 }}>Sil</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setIsOptionsModalOpen(false)} style={{ paddingVertical: 12, marginTop: 4, backgroundColor: isDark ? '#1e293b' : '#f1f5f9', borderRadius: 12, alignItems: 'center' }}>
+                  <Text style={{ color: textSecondary, fontWeight: '700', fontSize: 14 }}>İptal</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
-// ─── STYLES ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   headerGradient: {
+    paddingTop: 12,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    paddingBottom: 20,
-    paddingTop: 12,
-    paddingHorizontal: 16,
     elevation: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    gap: 12,
   },
   fabGradient: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
-  }
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
 });

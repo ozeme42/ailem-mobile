@@ -1,82 +1,87 @@
 // FORCE_RELOAD_TIMESTAMP=639189393801622631
-import { 
-  View, 
-  Text, 
-  ScrollView, 
-  TouchableOpacity, 
-  ActivityIndicator, 
-  Modal,
-  TextInput,
-  Platform,
-  Alert,
-  RefreshControl,
-  useWindowDimensions
-} from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useEffect, useState, useMemo } from 'react';
-import { 
-  GraduationCap, 
-  ChevronLeft, 
-  Plus, 
-  FileText, 
-  CheckCircle2, 
-  XCircle, 
-  Clock, 
-  AlertCircle, 
-  Timer, 
-  BookOpen, 
-  ChevronRight, 
-  ChevronDown,
-  ChevronUp,
-  Check, 
-  Play,
-  Sparkles, 
-  TrendingUp, 
-  Target, 
-  Settings, 
-  ScrollText, 
-  Ruler, 
-  TestTube2, 
-  BookCopy, 
-  Globe, 
-  MessageSquare, 
-  Gamepad2, 
-  ClipboardList, 
-  LayoutGrid, 
-  CalendarDays, 
-  Calendar as CalendarIcon,
-  Award,
-  BookMarked,
-  ListTree,
-  Flame,
-  Brain,
-  Rocket
-, BrainCircuit } from 'lucide-react-native';
-import { useRouter, Stack } from 'expo-router';
-import { format, parseISO, parse, isPast, isToday, addDays, isSameDay } from 'date-fns';
+import { addDays, format, isPast, isSameDay, isToday, parse, parseISO } from 'date-fns';
 import { tr } from 'date-fns/locale';
-import { useAuth } from '../../context/auth-context';
-import { useColorScheme } from 'nativewind';
-import { 
-  onTestsUpdate, 
-  onStudyAssignmentsUpdate, 
-  onStudyPlansUpdate, 
-  onTrackedBooksUpdate,
-  addTest,
-  updateStudyAssignment,
-  onSubjectsUpdate,
-  onTopicsUpdate,
-  onCurriculumMapUpdate,
-  safeParseDate
-} from '../../lib/dataService';
-import { Test, StudyAssignment, StudyPlan, TrackedBook } from '../../lib/data';
-import Svg, { Circle, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import Animated, { 
-  useSharedValue, useAnimatedStyle, withTiming,
-  withSpring, withRepeat, withSequence, FadeInDown
+import Svg, { Path } from 'react-native-svg';
+import { Stack, useRouter } from 'expo-router';
+import {
+    AlertCircle,
+    BookCopy,
+    BookOpen,
+    BookMarked,
+    Brain,
+    Calendar,
+    CalendarDays,
+    Calendar as CalendarIcon,
+    Check,
+    CheckCircle2,
+    CircleDashed,
+    Library,
+    ChevronDown,
+    ChevronLeft,
+    ChevronRight,
+    ChevronUp,
+    ClipboardList,
+    Clock,
+    FileText,
+    Flame,
+    Gamepad2,
+    Globe,
+    GraduationCap,
+    Layers,
+    LayoutGrid,
+    ListTree,
+    MessageSquare,
+    Play,
+    Plus,
+    Rocket,
+    Ruler,
+    ScrollText,
+    Settings,
+    Sparkles,
+    Target,
+    TestTube2,
+    Timer,
+    TrendingUp,
+    User,
+    XCircle
+} from 'lucide-react-native';
+import { useColorScheme } from 'nativewind';
+import { useEffect, useMemo, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    Modal,
+    RefreshControl,
+    ScrollView,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    useWindowDimensions,
+    View
+} from 'react-native';
+import Animated, {
+    FadeInDown,
+    useAnimatedStyle,
+    useSharedValue,
+    withRepeat, withSequence,
+    withTiming
 } from 'react-native-reanimated';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '../../context/auth-context';
+import { StudyAssignment, StudyPlan, Test, TrackedBook } from '../../lib/data';
+import {
+    addTest,
+    onCurriculumMapUpdate,
+    onStudyAssignmentsUpdate,
+    onStudyPlansUpdate,
+    onSubjectsUpdate,
+    onTestsUpdate,
+    onTopicsUpdate,
+    onTrackedBooksUpdate,
+    safeParseDate,
+    updateStudyAssignment
+} from '../../lib/dataService';
 
 // Color Themes
 const categoryThemes: Record<string, { bg: string; text: string; icon: any; border: string; accent: string; color: string }> = {
@@ -464,6 +469,7 @@ export default function EducationScreen() {
       pendingCount: (tests.length - completedTests.length) + (assignments.length - completedAssignments.length),
       successRate,
       averageScore: totalQ > 0 ? (totalC / totalQ) * 5 : 0,
+      completedCount: totalCompletedTasksCount,
       overdueCount,
       completedAssignmentsRate: completedRate
     };
@@ -517,6 +523,69 @@ export default function EducationScreen() {
       rate: data.total > 0 ? Math.round((data.correct / data.total) * 100) : 0
     })).sort((a, b) => b.rate - a.rate);
   }, [tests]);
+
+  // Ders detay istatistikleri (doğru/yanlış/boş) — render fonksiyonlarından ÖNCE tanımlanmalı
+  const subjectDetailStats = useMemo(() => {
+    const map: Record<string, { total: number; correct: number; incorrect: number }> = {};
+    tests.filter(t => t.status === 'Sonuçlandı' && t.subject).forEach(t => {
+      if (!map[t.subject!]) map[t.subject!] = { total: 0, correct: 0, incorrect: 0 };
+      map[t.subject!].total     += t.questionCount     || 0;
+      map[t.subject!].correct   += t.correctAnswers    || 0;
+      map[t.subject!].incorrect += t.incorrectAnswers  || 0;
+    });
+    return map;
+  }, [tests]);
+
+  // Son 3 tamamlanan test
+  const recentTests = useMemo(() => {
+    return tests
+      .filter(t => t.status === 'Sonuçlandı')
+      .sort((a, b) => {
+        const dA = safeParseDate(a.completedDate || a.assignedDate).getTime();
+        const dB = safeParseDate(b.completedDate || b.assignedDate).getTime();
+        return dB - dA;
+      })
+      .slice(0, 3);
+  }, [tests]);
+
+  // Yaklaşan görevler (testler + assignments)
+  const upcomingTasks = useMemo(() => {
+    const taskList: Array<{
+      id: string;
+      type: 'test' | 'assignment';
+      title: string;
+      dueDateStr: string;
+      dueDateObj: Date;
+    }> = [];
+
+    // Bekleyen testler
+    tests.filter(t => t.status === 'Atandı').forEach(t => {
+      if (t.dueDate) {
+        taskList.push({
+          id: t.id,
+          type: 'test',
+          title: t.title,
+          dueDateStr: t.dueDate,
+          dueDateObj: safeParseDate(t.dueDate),
+        });
+      }
+    });
+
+    // Bekleyen assignments
+    assignments.filter(a => a.status === 'assigned').forEach(a => {
+      if (a.dueDate) {
+        taskList.push({
+          id: a.id,
+          type: 'assignment',
+          title: a.title || 'Ödev',
+          dueDateStr: a.dueDate,
+          dueDateObj: safeParseDate(a.dueDate),
+        });
+      }
+    });
+
+    return taskList.sort((a, b) => a.dueDateObj.getTime() - b.dueDateObj.getTime());
+  }, [tests, assignments]);
 
   // Available subjects from database config
   const availableSubjects = useMemo(() => {
@@ -706,175 +775,251 @@ export default function EducationScreen() {
 
   const renderFocusBar = () => {
     if (!selectedStudent) return null;
-    const isOverdue = focusTask && isPast(focusTask.dueDateObj) && !isToday(focusTask.dueDateObj);
+    
     return (
-      <Animated.View entering={FadeInDown.delay(50).springify()} style={{ paddingHorizontal: isTabletLandscape ? 0 : 20, marginBottom: isTabletLandscape ? 0 : 20 }}>
+      <Animated.View entering={FadeInDown.delay(50).springify()} style={{ paddingHorizontal: isTabletLandscape ? 0 : 20, marginBottom: isTabletLandscape ? 24 : 20 }}>
         <LinearGradient
-          colors={isOverdue ? ['#f97316', '#dc2626', '#7f1d1d'] : ['#4f46e5', '#9333ea', '#db2777']}
+          colors={['#4f46e5', '#9333ea']} // from-indigo-600 to-purple-600
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={{ borderRadius: 28, padding: 20, flexDirection: 'row', alignItems: 'center', gap: 16, shadowColor: isOverdue ? '#dc2626' : '#9333ea', shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.45, shadowRadius: 24, elevation: 10 }}
+          style={{
+            borderRadius: 24,
+            padding: 20,
+            shadowColor: '#6366f1',
+            shadowOffset: { width: 0, height: 10 },
+            shadowOpacity: 0.2,
+            shadowRadius: 15,
+            elevation: 8,
+            overflow: 'hidden',
+          }}
         >
-          {/* Left icon */}
-          <View style={{ width: 56, height: 56, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }}>
-            {focusTask ? <Target size={26} color="white" /> : <CheckCircle2 size={26} color="#34d399" />}
+          {/* Arka plan parlama efektleri (blur simülasyonu) */}
+          <View style={{ position: 'absolute', right: -40, top: -40, width: 120, height: 120, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 60 }} />
+          <View style={{ position: 'absolute', left: -40, bottom: -40, width: 120, height: 120, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 60 }} />
+
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', mb: 16, zIndex: 10 }}>
+            <View>
+              <Text style={{ color: 'white', fontWeight: '900', fontSize: 20, lineHeight: 24 }}>{selectedStudent.name}</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 4 }}>Öğrenci Profili</Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 10, fontWeight: '700', textTransform: 'uppercase', marginBottom: 2 }}>Ortalama Puan</Text>
+              <Text style={{ color: 'white', fontWeight: '900', fontSize: 24, lineHeight: 28 }}>{stats.averageScore.toFixed(2)}</Text>
+            </View>
           </View>
 
-          {/* Content */}
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 5 }}>
-              <Sparkles size={11} color="#fcd34d" />
-              <Text style={{ fontSize: 10, fontWeight: '900', color: 'rgba(255,255,255,0.65)', letterSpacing: 1.5, textTransform: 'uppercase' }}>
-                {focusTask ? 'Sıradaki Hedef' : 'Harika İş!'}
-              </Text>
+          <View style={{ 
+            backgroundColor: 'rgba(255,255,255,0.15)', 
+            borderRadius: 16, 
+            padding: 12, 
+            borderWidth: 1, 
+            borderColor: 'rgba(255,255,255,0.2)',
+            marginTop: 16,
+            zIndex: 10
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <Target size={14} color="#93c5fd" />
+              <Text style={{ fontSize: 11, fontWeight: '900', color: 'rgba(255,255,255,0.9)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Günün Odağı</Text>
             </View>
+            
             {focusTask ? (
-              <>
-                <Text style={{ color: 'white', fontSize: 16, fontWeight: '900', letterSpacing: -0.3 }} numberOfLines={1}>{focusTask.title}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Clock size={11} color="rgba(255,255,255,0.55)" />
-                    <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '700' }}>{focusTask.dueDateStr}</Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Timer size={11} color="rgba(255,255,255,0.55)" />
-                    <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '700' }}>{focusTask.durationMinutes} dk</Text>
-                  </View>
-                  {isOverdue && (
-                    <View style={{ backgroundColor: 'rgba(239,68,68,0.3)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 }}>
-                      <Text style={{ fontSize: 9, fontWeight: '900', color: '#fca5a5' }}>GECİKTİ</Text>
-                    </View>
-                  )}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={{ color: 'white', fontWeight: '700', fontSize: 14, lineHeight: 18 }} numberOfLines={1}>{focusTask.title}</Text>
+                  <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginTop: 4 }}>{focusTask.dueDateStr}</Text>
                 </View>
-              </>
+                
+                <TouchableOpacity
+                  onPress={() => {
+                    if (focusTask.type === 'test') {
+                      router.push({ pathname: '/exam-detail', params: { id: focusTask.id } });
+                    } else if (focusTask.planId) {
+                      router.push({ pathname: '/plan-detail', params: { id: focusTask.planId } });
+                    } else if ((focusTask as any).bookId && (focusTask as any).testId) {
+                      router.push({ pathname: '/book-test-solver', params: { bookId: (focusTask as any).bookId, testId: (focusTask as any).testId, assignmentId: focusTask.id } });
+                    } else {
+                      Alert.alert('Ödevi Tamamla', 'Bu ödevi tamamlandı olarak işaretlemek ister misiniz?', [
+                        { text: 'İptal', style: 'cancel' },
+                        { text: 'Tamamla', onPress: () => handleCompleteStudy(focusTask.id, 'assigned') }
+                      ]);
+                    }
+                  }}
+                  activeOpacity={0.8}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    backgroundColor: 'white',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 4,
+                    elevation: 3,
+                  }}
+                >
+                  <Play size={16} color="#4f46e5" fill="#4f46e5" style={{ marginLeft: 2 }} />
+                </TouchableOpacity>
+              </View>
             ) : (
-              <Text style={{ color: 'white', fontSize: 15, fontWeight: '900' }}>Tüm görevler tamamlandı 🎉</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <CheckCircle2 size={16} color="#34d399" />
+                <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, fontWeight: '500' }}>Görev yok</Text>
+              </View>
             )}
           </View>
-
-          {/* Action button */}
-          <TouchableOpacity
-            onPress={() => {
-              if (focusTask) {
-                if (focusTask.type === 'test') {
-                  router.push({ pathname: '/exam-detail', params: { id: focusTask.id } });
-                } else if (focusTask.planId) {
-                  router.push({ pathname: '/plan-detail', params: { id: focusTask.planId } });
-                } else if ((focusTask as any).bookId && (focusTask as any).testId) {
-                  router.push({ pathname: '/book-test-solver', params: { bookId: (focusTask as any).bookId, testId: (focusTask as any).testId, assignmentId: focusTask.id } });
-                } else {
-                  Alert.alert('Ödevi Tamamla', 'Bu ödevi tamamlandı olarak işaretlemek ister misiniz?', [
-                    { text: 'İptal', style: 'cancel' },
-                    { text: 'Tamamla', onPress: () => handleCompleteStudy(focusTask.id, 'assigned') }
-                  ]);
-                }
-              }
-            }}
-            disabled={!focusTask}
-            activeOpacity={0.8}
-            style={{ alignItems: 'center' }}
-          >
-            <Animated.View style={[
-              { width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center' },
-              focusTask ? pulseStyle : {}
-            ]}>
-              {focusTask
-                ? <Play size={20} color="#9333ea" fill="#9333ea" style={{ marginLeft: 3 }} />
-                : <Check size={22} color="#10b981" />
-              }
-            </Animated.View>
-            <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 9, fontWeight: '900', marginTop: 5, textTransform: 'uppercase', letterSpacing: 0.8 }}>
-              {focusTask ? 'Başlat' : 'Tamam'}
-            </Text>
-          </TouchableOpacity>
         </LinearGradient>
       </Animated.View>
     );
   };
+
   const renderStatsGrid = () => {
-    type GC = readonly [string, string, ...string[]];
-    // Compact chip-style stat cards, single row, with spring-in animation.
-    const statCards: { label: string; value: string | number; icon: any; colors: GC; iconColor: string; trend?: boolean }[] = [
-      { label: 'Tamamlanan', value: gamification.totalXP > 0 ? (gamification.totalXP / 10) : 0, icon: Brain, colors: (isDark ? ['#0c1f3d', '#0f2a52'] : ['#eff6ff', '#dbeafe']) as GC, iconColor: '#2563EB', trend: true },
-      { label: 'Başarı', value: '%' + stats.successRate.toFixed(0), icon: Rocket, colors: (isDark ? ['#2a1a3d', '#341f4d'] : ['#f5f3ff', '#ede9fe']) as GC, iconColor: '#7C3AED', trend: true },
-      { label: 'Bekleyen', value: stats.pendingCount, icon: Clock, colors: (isDark ? ['#3d2c0c', '#4d3a10'] : ['#fffbeb', '#fef3c7']) as GC, iconColor: '#d97706' },
-      { label: 'Geciken', value: stats.overdueCount, icon: AlertCircle, colors: (stats.overdueCount > 0 ? (isDark ? ['#3d0c0c', '#4d1010'] : ['#fef2f2', '#fee2e2']) : (isDark ? ['#0c1a12', '#0f2417'] : ['#ecfdf5', '#d1fae5'])) as GC, iconColor: stats.overdueCount > 0 ? '#ef4444' : '#10b981' },
-    ];
+    const MiniBarChart = ({ color }: { color: string }) => (
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 32, marginTop: 12, opacity: 0.8 }}>
+        {[40, 70, 45, 90, 60, 85, 50].map((h, i) => (
+          <View key={i} style={{ width: 6, borderTopLeftRadius: 3, borderTopRightRadius: 3, height: `${h}%`, backgroundColor: color }} />
+        ))}
+      </View>
+    );
+
     return (
-      <View style={{ paddingHorizontal: isTabletLandscape ? 0 : 20, marginBottom: isTabletLandscape ? 0 : 24 }}>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          {statCards.map((card, idx) => {
-            const Icon = card.icon;
-            return (
-              <Animated.View
-                key={idx}
-                entering={FadeInDown.delay(60 + idx * 90).springify().damping(11).stiffness(140)}
-                style={{ flex: 1 }}
-              >
-                <LinearGradient
-                  colors={card.colors}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={{
-                    borderRadius: 18,
-                    paddingVertical: 12,
-                    paddingHorizontal: 10,
-                    alignItems: 'center',
-                    borderWidth: 1,
-                    borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)',
-                    shadowColor: card.iconColor,
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: isDark ? 0.25 : 0.12,
-                    shadowRadius: 8,
-                    elevation: 2,
-                  }}
-                >
-                  <View style={{ width: 28, height: 28, borderRadius: 10, backgroundColor: card.iconColor + '1E', alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
-                    <Icon size={14} color={card.iconColor} />
-                  </View>
-                  <Text style={{ fontSize: 17, fontWeight: '900', color: textMain, letterSpacing: -0.5 }} numberOfLines={1}>{card.value}</Text>
-                  <Text style={{ fontSize: 9, fontWeight: '700', color: textSub, marginTop: 1 }} numberOfLines={1}>{card.label}</Text>
-                </LinearGradient>
-              </Animated.View>
-            );
-          })}
+      <View style={{ paddingHorizontal: isTabletLandscape ? 0 : 20, marginBottom: isTabletLandscape ? 24 : 28 }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+          
+          {/* 1. Tamamlanan */}
+          <Animated.View entering={FadeInDown.delay(60).springify().damping(11).stiffness(140)} style={{ flex: 1, minWidth: '45%' }}>
+            <View style={{ backgroundColor: isDark ? '#1E293B' : 'white', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: isDark ? '#334155' : '#f1f5f9', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2, justifyContent: 'space-between', minHeight: 120 }}>
+              <View>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>Tamamlanan</Text>
+                <Text style={{ fontSize: 24, fontWeight: '900', color: isDark ? 'white' : '#0f172a', marginTop: 4 }}>{stats.completedCount}</Text>
+              </View>
+              <MiniBarChart color="#10b981" />
+            </View>
+          </Animated.View>
+
+          {/* 2. Başarı Oranı */}
+          <Animated.View entering={FadeInDown.delay(150).springify().damping(11).stiffness(140)} style={{ flex: 1, minWidth: '45%' }}>
+            <View style={{ backgroundColor: isDark ? '#1E293B' : 'white', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: isDark ? '#334155' : '#f1f5f9', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2, justifyContent: 'space-between', minHeight: 120 }}>
+              <View>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>Başarı Oranı</Text>
+                <Text style={{ fontSize: 24, fontWeight: '900', color: isDark ? 'white' : '#0f172a', marginTop: 4 }}>%{stats.successRate.toFixed(2)}</Text>
+              </View>
+              <MiniBarChart color="#3b82f6" />
+            </View>
+          </Animated.View>
+
+          {/* 3. Bekleyen */}
+          <Animated.View entering={FadeInDown.delay(240).springify().damping(11).stiffness(140)} style={{ flex: 1, minWidth: '45%' }}>
+            <View style={{ backgroundColor: isDark ? '#1E293B' : 'white', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: isDark ? '#334155' : '#f1f5f9', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2, justifyContent: 'space-between', minHeight: 120 }}>
+              <View>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>Bekleyen</Text>
+                <Text style={{ fontSize: 24, fontWeight: '900', color: isDark ? 'white' : '#0f172a', marginTop: 4 }}>{stats.pendingCount}</Text>
+              </View>
+              <MiniBarChart color="#f59e0b" />
+            </View>
+          </Animated.View>
+
+          {/* 4. Geciken */}
+          <Animated.View entering={FadeInDown.delay(330).springify().damping(11).stiffness(140)} style={{ flex: 1, minWidth: '45%' }}>
+            <View style={{ backgroundColor: isDark ? 'rgba(255,228,230,0.05)' : 'white', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: isDark ? '#4c0519' : '#ffe4e6', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2, justifyContent: 'space-between', minHeight: 120, overflow: 'hidden' }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', zIndex: 10 }}>
+                <View>
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#f43f5e', textTransform: 'uppercase', letterSpacing: 0.5 }}>Geciken</Text>
+                  <Text style={{ fontSize: 24, fontWeight: '900', color: '#f43f5e', marginTop: 4 }}>{stats.overdueCount}</Text>
+                </View>
+                {stats.overdueCount > 0 && (
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#ef4444', marginTop: 4 }} />
+                )}
+              </View>
+              <View style={{ position: 'absolute', bottom: -10, left: 0, right: 0, height: 50, opacity: 0.5, zIndex: 1 }}>
+                 <Svg viewBox="0 0 100 30" width="100%" height="100%" preserveAspectRatio="none">
+                    <Path d="M0,25 Q20,5 40,20 T80,10 T100,20" fill="none" stroke="#f43f5e" strokeWidth="2" />
+                 </Svg>
+              </View>
+            </View>
+          </Animated.View>
+
         </View>
       </View>
     );
   };
   const renderQuickActions = () => {
-    type GC = readonly [string, string, ...string[]];
-    const actions: { name: string; desc: string; icon: any; colors: GC; shadowColor: string; route: string }[] = [
-      { name: 'Konu Planı', desc: 'Ders Yol Haritası', icon: BookMarked, colors: ['#4f46e5', '#7c3aed'] as const, shadowColor: '#6366f1', route: '/study-plans' },
-      { name: 'Ders Özetleri', desc: 'Akıllı Not Kartları', icon: ScrollText, colors: ['#7c3aed', '#c026d3'] as const, shadowColor: '#a855f7', route: '/summaries' },
-      { name: 'Sınav Analiz', desc: 'Net Dağılımları', icon: ListTree, colors: ['#2563eb', '#4f46e5'] as const, shadowColor: '#4f46e5', route: '/education-results' },
-      { name: 'Hatalarım', desc: 'Tüm Yanlış Sorular', icon: AlertCircle, colors: ['#c026d3', '#e11d48'] as const, shadowColor: '#db2777', route: '/mistakes' },
+    const actions = [
+      { 
+        title: 'Ders Özetleri', 
+        icon: ScrollText, 
+        colors: ['#10b981', '#0d9488'], // from-emerald-500 to-teal-600
+        path: '/education/summaries' 
+      },
+      { 
+        title: 'Sonuçlarım', 
+        icon: ListTree, 
+        colors: ['#6366f1', '#2563eb'], // from-indigo-500 to-blue-600
+        path: '/education/results' 
+      },
+      { 
+        title: 'Konu Çalışma', 
+        icon: BookOpen, 
+        colors: ['#a855f7', '#4f46e5'], // from-purple-500 to-indigo-600
+        path: '/education/study' 
+      },
+      { 
+        title: 'Yanlışlarım', 
+        icon: AlertCircle, 
+        colors: ['#f43f5e', '#db2777'], // from-rose-500 to-pink-600
+        path: '/education/mistakes' 
+      },
     ];
+
     return (
-      <View style={{ paddingHorizontal: isTabletLandscape ? 0 : 20, marginBottom: isTabletLandscape ? 0 : 28 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-          <Text style={{ fontSize: 11, fontWeight: '900', color: textSub, textTransform: 'uppercase', letterSpacing: 1.5 }}>⚡ Hızlı Erişim</Text>
-        </View>
+      <View style={{ paddingHorizontal: isTabletLandscape ? 0 : 20, marginBottom: 24 }}>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-          {actions.map((item, idx) => {
-            const Icon = item.icon;
+          {actions.map((action, index) => {
+            const Icon = action.icon;
             return (
-              <Animated.View key={idx} entering={FadeInDown.delay(160 + idx * 60).springify()} style={{ width: isTabletLandscape ? '100%' : '47%', flexGrow: 1 }}>
-                <TouchableOpacity onPress={() => router.push(item.route as any)} activeOpacity={0.75}>
+              <Animated.View 
+                key={action.title} 
+                entering={FadeInDown.delay(100 + index * 50).springify().damping(12)}
+                style={{ flex: 1, minWidth: '45%' }}
+              >
+                <TouchableOpacity
+                  onPress={() => router.push(action.path as any)}
+                  activeOpacity={0.9}
+                >
                   <LinearGradient
-                    colors={item.colors}
+                    colors={action.colors}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
-                    style={{ borderRadius: 22, padding: 18, flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', shadowColor: item.shadowColor, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 16, elevation: 6 }}
+                    style={{
+                      borderRadius: 16,
+                      padding: 12,
+                      minHeight: 90,
+                      justifyContent: 'space-between',
+                      shadowColor: action.colors[0],
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: 0.2,
+                      shadowRadius: 8,
+                      elevation: 4,
+                    }}
                   >
-                    <View style={{ width: 46, height: 46, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}>
-                      <Icon size={22} color="white" />
+                    <View style={{ 
+                      width: 28, 
+                      height: 28, 
+                      borderRadius: 8, 
+                      backgroundColor: 'rgba(255,255,255,0.2)', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      marginBottom: 8
+                    }}>
+                      <Icon size={14} color="white" />
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 13, fontWeight: '900', color: 'white' }} numberOfLines={1}>{item.name}</Text>
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>{item.desc}</Text>
-                    </View>
-                    <ChevronRight size={16} color="rgba(255,255,255,0.35)" />
+                    <Text style={{ 
+                      color: 'white', 
+                      fontSize: 14, 
+                      fontWeight: '900', 
+                      lineHeight: 18 
+                    }}>{action.title}</Text>
                   </LinearGradient>
                 </TouchableOpacity>
               </Animated.View>
@@ -884,50 +1029,233 @@ export default function EducationScreen() {
       </View>
     );
   };
-  const renderWeeklyScheduler = () => {
+
+  const renderRecentResults = () => {
+    if (recentTests.length === 0) return null;
     return (
-      <Animated.View entering={FadeInDown.delay(300).springify()} style={{ paddingHorizontal: isTabletLandscape ? 0 : 20, marginBottom: isTabletLandscape ? 0 : 28 }}>
+      <View style={{ paddingHorizontal: isTabletLandscape ? 0 : 20, marginBottom: isTabletLandscape ? 24 : 28 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <Text style={{ fontSize: 14, fontWeight: '900', color: textSub, textTransform: 'uppercase', letterSpacing: 0.8 }}>Son Sonuçlar</Text>
+          <TouchableOpacity onPress={() => router.push('/education-results')} activeOpacity={0.7}>
+            <Text style={{ fontSize: 11, fontWeight: '800', color: '#6366f1' }}>Tümünü Gör →</Text>
+          </TouchableOpacity>
+        </View>
 
-        {/* ── Section Header ── */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: isDark ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.12)', alignItems: 'center', justifyContent: 'center' }}>
-              <CalendarDays size={16} color="#6366f1" />
-            </View>
-            <View>
-              <Text style={{ fontSize: 15, fontWeight: '900', color: textMain, letterSpacing: -0.3 }}>Haftalık Takvim</Text>
-              <Text style={{ fontSize: 10, fontWeight: '700', color: textSub, letterSpacing: 0.3 }}>
-                {activeDayTasks.length > 0 ? `${activeDayTasks.length} görev planlandı` : 'Seçili gün temiz 🎉'}
-              </Text>
-            </View>
-          </View>
+        <View style={{ gap: 10 }}>
+          {recentTests.map((test, idx) => {
+            const theme = categoryThemes[test.subject || 'Diğer'] || categoryThemes['Diğer'];
+            const Icon = theme.icon;
+            const rate = test.questionCount ? Math.round((test.correctAnswers || 0) / test.questionCount * 100) : 0;
+            const net = (test.correctAnswers || 0) - (test.incorrectAnswers || 0) * 0.25;
+            const rateColor = rate >= 75 ? '#10b981' : rate >= 50 ? '#f59e0b' : '#f43f5e';
+            const completedDate = test.completedDate || test.assignedDate;
+            const daysDiff = Math.floor((new Date().getTime() - safeParseDate(completedDate).getTime()) / (1000 * 60 * 60 * 24));
 
-          {/* View Mode Toggle */}
-          <View style={{ flexDirection: 'row', backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9', borderRadius: 14, padding: 3, borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }}>
-            {(['week', 'list'] as const).map(mode => (
+            return (
               <TouchableOpacity
-                key={mode}
-                onPress={() => setTodoViewMode(mode)}
+                key={idx}
+                onPress={() => router.push('/education-results')}
+                activeOpacity={0.85}
                 style={{
-                  paddingHorizontal: 14, paddingVertical: 6, borderRadius: 11,
-                  backgroundColor: todoViewMode === mode
-                    ? (isDark ? '#4f46e5' : 'white')
-                    : 'transparent',
-                  shadowColor: todoViewMode === mode ? '#4f46e5' : 'transparent',
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#ffffff',
+                  borderRadius: 18,
+                  padding: 12,
+                  borderWidth: 1,
+                  borderColor: isDark ? 'rgba(255,255,255,0.08)' : `${theme.color}20`,
+                  shadowColor: '#000',
                   shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.4,
-                  shadowRadius: 6,
+                  shadowOpacity: 0.08,
+                  shadowRadius: 8,
+                  elevation: 1,
                 }}
               >
-                <Text style={{ fontSize: 11, fontWeight: '800', color: todoViewMode === mode ? (isDark ? 'white' : '#4f46e5') : textSub }}>
-                  {mode === 'week' ? 'Hafta' : 'Liste'}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  {/* Sol: ders ikonu */}
+                  <View style={{
+                    width: 36, height: 36, borderRadius: 10,
+                    backgroundColor: `${theme.color}18`,
+                    alignItems: 'center', justifyContent: 'center',
+                    borderWidth: 1,
+                    borderColor: `${theme.color}30`,
+                  }}>
+                    <Icon size={18} color={theme.color} />
+                  </View>
+
+                  {/* Orta: detaylar */}
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '900', color: textMain }} numberOfLines={1}>
+                      {test.subject} • {test.testName || 'Test'}
+                    </Text>
+                    <Text style={{ fontSize: 10, color: textSub, fontWeight: '600', marginTop: 2 }}>
+                      {daysDiff === 0 ? 'Bugün' : daysDiff === 1 ? 'Dün' : `${daysDiff} gün önce`}
+                    </Text>
+                  </View>
+
+                  {/* Sağ: kompakt skorlar */}
+                  <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                    {/* Başarı yüzdesi */}
+                    <View style={{
+                      backgroundColor: `${rateColor}18`,
+                      borderRadius: 8,
+                      paddingHorizontal: 8,
+                      paddingVertical: 3,
+                      borderWidth: 1,
+                      borderColor: `${rateColor}40`,
+                    }}>
+                      <Text style={{ fontSize: 11, fontWeight: '900', color: rateColor }}>%{rate}</Text>
+                    </View>
+
+                    {/* D / Y / Net */}
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <Text style={{ fontSize: 9, color: '#10b981', fontWeight: '700' }}>{test.correctAnswers || 0}D</Text>
+                      <Text style={{ fontSize: 9, color: '#f43f5e', fontWeight: '700' }}>{test.incorrectAnswers || 0}Y</Text>
+                      <Text style={{ fontSize: 9, color: textSub, fontWeight: '700' }}>{net.toFixed(1)} Net</Text>
+                    </View>
+                  </View>
+                </View>
               </TouchableOpacity>
-            ))}
+            );
+          })}
+        </View>
+      </View>
+    );
+  };
+
+  const renderWeeklyScheduler = () => {
+    if (pendingTasks.length === 0) return null;
+
+    const renderTaskCard = (task: any, index: number) => {
+      const theme = categoryThemes[task.subject] || categoryThemes['Diğer'];
+      const IconComponent = theme.icon;
+      const overdue = isPast(task.dueDateObj) && !isToday(task.dueDateObj);
+      const dueToday = isToday(task.dueDateObj);
+
+      return (
+        <Animated.View key={task.id} entering={FadeInDown.delay(index * 50).springify()}>
+          <TouchableOpacity
+            onPress={() => {
+              if (task.type === 'test') router.push({ pathname: '/exam-detail', params: { id: task.id } });
+              else if (task.planId) router.push({ pathname: '/plan-detail', params: { id: task.planId } });
+              else if ((task as any).bookId && (task as any).testId) router.push({ pathname: '/book-test-solver', params: { bookId: (task as any).bookId, testId: (task as any).testId, assignmentId: task.id } });
+              else Alert.alert("Ödevi Tamamla", "Bu ödevi tamamlandı olarak işaretlemek ister misiniz?", [{ text: "İptal", style: "cancel" }, { text: "Tamamla", onPress: () => handleCompleteStudy(task.id, 'assigned') }]);
+            }}
+            activeOpacity={0.75}
+            style={{
+              backgroundColor: isDark ? '#0f172a' : 'white',
+              borderRadius: 16,
+              padding: 12,
+              marginBottom: 12,
+              flexDirection: 'row',
+              alignItems: 'center',
+              borderWidth: 1,
+              borderColor: overdue ? (isDark ? '#991b1b' : '#fca5a5') : (isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9'),
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.05,
+              shadowRadius: 4,
+              elevation: 2,
+              overflow: 'hidden'
+            }}
+          >
+            {overdue && <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: '#f43f5e' }} />}
+
+            {/* Icon */}
+            <View style={{
+              width: 48,
+              height: 48,
+              borderRadius: 12,
+              backgroundColor: isDark ? '#1e293b' : '#f8fafc',
+              borderWidth: 2,
+              borderColor: `${theme.color}20`,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: 12
+            }}>
+              <IconComponent size={20} color={theme.color} />
+            </View>
+
+            {/* Content */}
+            <View style={{ flex: 1, paddingRight: 4 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <Text style={{ fontSize: 9, fontWeight: '900', color: theme.color, textTransform: 'uppercase', letterSpacing: 0.6 }}>{task.subject}</Text>
+                {overdue && (
+                  <Text style={{ fontSize: 9, fontWeight: '900', color: '#f43f5e', textTransform: 'uppercase' }}>{Math.abs(Math.floor((new Date().getTime() - task.dueDateObj.getTime()) / (1000 * 60 * 60 * 24)))} GÜN GECİKTİ</Text>
+                )}
+                {!overdue && dueToday && (
+                  <Text style={{ fontSize: 9, fontWeight: '900', color: '#f59e0b', textTransform: 'uppercase' }}>BUGÜN</Text>
+                )}
+              </View>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: isDark ? 'white' : '#1e293b', marginBottom: 6 }} numberOfLines={1}>{task.title}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <CalendarIcon size={12} color={isDark ? '#64748b' : '#94a3b8'} />
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: isDark ? '#64748b' : '#64748b' }}>{task.dueDateStr}</Text>
+                </View>
+                {task.durationMinutes && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Timer size={12} color={isDark ? '#64748b' : '#94a3b8'} />
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: isDark ? '#64748b' : '#64748b' }}>{task.durationMinutes} dk</Text>
+                  </View>
+                )}
+                {task.questionCount && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <FileText size={12} color={isDark ? '#64748b' : '#94a3b8'} />
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: isDark ? '#64748b' : '#64748b' }}>{task.questionCount} Soru</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </TouchableOpacity>
+        </Animated.View>
+      );
+    };
+
+    return (
+      <View style={{ paddingHorizontal: isTabletLandscape ? 0 : 20, marginBottom: 24 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Layers size={20} color="#6366f1" />
+            <Text style={{ fontSize: 18, fontWeight: '900', color: isDark ? 'white' : '#0f172a' }}>Yapılacaklar</Text>
+            <View style={{ backgroundColor: isDark ? 'rgba(99,102,241,0.2)' : '#e0e7ff', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 }}>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: isDark ? '#818cf8' : '#4f46e5' }}>{pendingTasks.length}</Text>
+            </View>
+          </View>
+          
+          <View style={{ flexDirection: 'row', backgroundColor: isDark ? '#1e293b' : '#f1f5f9', borderRadius: 12, padding: 4 }}>
+            <TouchableOpacity onPress={() => setTodoViewMode('list')} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: todoViewMode === 'list' ? (isDark ? '#334155' : 'white') : 'transparent', shadowOpacity: todoViewMode === 'list' ? 0.05 : 0 }}>
+              <LayoutGrid size={14} color={todoViewMode === 'list' ? (isDark ? 'white' : '#0f172a') : '#64748b'} />
+              <Text style={{ fontSize: 11, fontWeight: '700', color: todoViewMode === 'list' ? (isDark ? 'white' : '#0f172a') : '#64748b' }}>Liste</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setTodoViewMode('week')} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: todoViewMode === 'week' ? (isDark ? '#334155' : 'white') : 'transparent', shadowOpacity: todoViewMode === 'week' ? 0.05 : 0 }}>
+              <CalendarDays size={14} color={todoViewMode === 'week' ? (isDark ? 'white' : '#0f172a') : '#64748b'} />
+              <Text style={{ fontSize: 11, fontWeight: '700', color: todoViewMode === 'week' ? (isDark ? 'white' : '#0f172a') : '#64748b' }}>Hafta</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
-        {todoViewMode === 'week' ? (
+        {todoViewMode === 'list' ? (
+          <View>
+            {pendingTasks.filter(t => t.type === 'test').length > 0 && (
+              <View style={{ marginBottom: 16 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+                  <Layers size={14} color="#6366f1" />
+                  <Text style={{ fontSize: 12, fontWeight: '900', color: '#6366f1', textTransform: 'uppercase', letterSpacing: 0.5 }}>Testler</Text>
+                </View>
+                {pendingTasks.filter(t => t.type === 'test').map((task, idx) => renderTaskCard(task, idx))}
+              </View>
+            )}
+            
+            {pendingTasks.filter(t => t.type === 'assignment').length > 0 && (
+              <View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+                  <BookOpen size={14} color="#10b981" />
+                  <Text style={{ fontSize: 12, fontWeight: '900', color: '#10b981', textTransform: 'uppercase', letterSpacing: 0.5 }}>Konu Anlatımı</Text>
+                </View>
+                {pendingTasks.filter(t => t.type === 'assignment').map((task, idx) => renderTaskCard(task, idx))}
+              </View>
+            )}
+          </View>
+        ) : (
           <View>
             {/* ── Calendar Strip ── */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 18 }}>
@@ -979,16 +1307,16 @@ export default function EducationScreen() {
                           width: 62, height: 80, borderRadius: 22,
                           backgroundColor: isDayToday
                             ? (isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.08)')
-                            : cardBg,
+                            : (isDark ? '#0f172a' : 'white'),
                           borderWidth: isDayToday ? 1.5 : 1,
-                          borderColor: isDayToday ? 'rgba(99,102,241,0.4)' : cardBorder,
+                          borderColor: isDayToday ? 'rgba(99,102,241,0.4)' : (isDark ? 'rgba(255,255,255,0.05)' : '#e2e8f0'),
                           alignItems: 'center', justifyContent: 'center',
                         }}
                       >
-                        <Text style={{ fontSize: 10, fontWeight: '800', color: isDayToday ? '#6366f1' : textSub, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '800', color: isDayToday ? '#6366f1' : (isDark ? 'rgba(255,255,255,0.6)' : '#64748b'), textTransform: 'uppercase', letterSpacing: 0.5 }}>
                           {format(day, 'eee', { locale: tr })}
                         </Text>
-                        <Text style={{ fontSize: 20, fontWeight: '900', color: isDayToday ? '#6366f1' : textMain, marginTop: 2 }}>
+                        <Text style={{ fontSize: 20, fontWeight: '900', color: isDayToday ? '#6366f1' : (isDark ? 'white' : '#1e293b'), marginTop: 2 }}>
                           {format(day, 'd')}
                         </Text>
                         {taskCount > 0 ? (
@@ -1010,230 +1338,138 @@ export default function EducationScreen() {
             {/* ── Selected Day Task List ── */}
             <View style={{ gap: 10 }}>
               {activeDayTasks.length > 0 ? (
-                activeDayTasks.map((task, idx) => {
-                  const theme = categoryThemes[task.subject] || categoryThemes['Diğer'];
-                  const IconComponent = theme.icon;
-                  const overdue = isPast(task.dueDateObj) && !isToday(task.dueDateObj);
-
-                  return (
-                    <Animated.View key={task.id} entering={FadeInDown.delay(idx * 60).springify()}>
-                      <TouchableOpacity
-                        onPress={() => {
-                          if (task.type === 'test') router.push({ pathname: '/exam-detail', params: { id: task.id } });
-                          else if (task.planId) router.push({ pathname: '/plan-detail', params: { id: task.planId } });
-                          else if ((task as any).bookId && (task as any).testId) router.push({ pathname: '/book-test-solver', params: { bookId: (task as any).bookId, testId: (task as any).testId, assignmentId: task.id } });
-                          else Alert.alert("Ödevi Tamamla", "Bu ödevi tamamlandı olarak işaretlemek ister misiniz?", [{ text: "İptal", style: "cancel" }, { text: "Tamamla", onPress: () => handleCompleteStudy(task.id, 'assigned') }]);
-                        }}
-                        activeOpacity={0.75}
-                        style={{
-                          backgroundColor: cardBg,
-                          borderRadius: 20,
-                          borderWidth: 1,
-                          borderColor: overdue ? '#ef444430' : cardBorder,
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          overflow: 'hidden',
-                          shadowColor: theme.color,
-                          shadowOffset: { width: 0, height: 4 },
-                          shadowOpacity: isDark ? 0.15 : 0.08,
-                          shadowRadius: 12,
-                          elevation: 3,
-                        }}
-                      >
-                        {/* Left color accent bar */}
-                        <View style={{ width: 4, alignSelf: 'stretch', backgroundColor: overdue ? '#ef4444' : theme.color, borderTopLeftRadius: 20, borderBottomLeftRadius: 20 }} />
-
-                        {/* Icon */}
-                        <View style={{ margin: 14, width: 46, height: 46, borderRadius: 16, backgroundColor: theme.color + '18', alignItems: 'center', justifyContent: 'center' }}>
-                          <IconComponent size={22} color={theme.color} />
-                        </View>
-
-                        {/* Content */}
-                        <View style={{ flex: 1, paddingVertical: 14, paddingRight: 4 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                            <View style={{ backgroundColor: theme.color + '20', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
-                              <Text style={{ fontSize: 9, fontWeight: '900', color: theme.color, textTransform: 'uppercase', letterSpacing: 0.6 }}>{task.subject}</Text>
-                            </View>
-                            {overdue && (
-                              <View style={{ backgroundColor: '#ef444420', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
-                                <Text style={{ fontSize: 9, fontWeight: '900', color: '#ef4444' }}>GECİKTİ</Text>
-                              </View>
-                            )}
-                          </View>
-                          <Text style={{ fontSize: 13, fontWeight: '800', color: textMain, marginBottom: 6 }} numberOfLines={1}>{task.title}</Text>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                              <Timer size={10} color={textMuted} />
-                              <Text style={{ fontSize: 10, fontWeight: '700', color: textSub }}>{task.durationMinutes} dk</Text>
-                            </View>
-                            {task.questionCount ? (
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                <FileText size={10} color={textMuted} />
-                                <Text style={{ fontSize: 10, fontWeight: '700', color: textSub }}>{task.questionCount} soru</Text>
-                              </View>
-                            ) : null}
-                          </View>
-                        </View>
-
-                        {/* Arrow */}
-                        <View style={{ paddingRight: 14 }}>
-                          <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: theme.color + '15', alignItems: 'center', justifyContent: 'center' }}>
-                            <ChevronRight size={15} color={theme.color} />
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-                    </Animated.View>
-                  );
-                })
+                <View>
+                  {activeDayTasks.filter(t => t.type === 'test').length > 0 && (
+                    <View style={{ marginBottom: 12 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                        <Layers size={14} color="#6366f1" />
+                        <Text style={{ fontSize: 12, fontWeight: '900', color: '#6366f1', textTransform: 'uppercase', letterSpacing: 0.5 }}>Testler</Text>
+                      </View>
+                      {activeDayTasks.filter(t => t.type === 'test').map((task, idx) => renderTaskCard(task, idx))}
+                    </View>
+                  )}
+                  {activeDayTasks.filter(t => t.type === 'assignment').length > 0 && (
+                    <View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                        <BookOpen size={14} color="#10b981" />
+                        <Text style={{ fontSize: 12, fontWeight: '900', color: '#10b981', textTransform: 'uppercase', letterSpacing: 0.5 }}>Konu Anlatımı</Text>
+                      </View>
+                      {activeDayTasks.filter(t => t.type === 'assignment').map((task, idx) => renderTaskCard(task, idx))}
+                    </View>
+                  )}
+                </View>
               ) : (
-                <LinearGradient
-                  colors={isDark ? ['#064e3b', '#065f46'] : ['#ecfdf5', '#d1fae5']}
-                  style={{ padding: 36, borderRadius: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(52,211,153,0.25)' }}
-                >
-                  <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(16,185,129,0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
-                    <CheckCircle2 size={30} color="#34d399" />
-                  </View>
-                  <Text style={{ fontSize: 16, fontWeight: '900', color: isDark ? 'white' : '#065f46', marginBottom: 6 }}>Bugün ödev yok! 🎉</Text>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: isDark ? 'rgba(255,255,255,0.6)' : '#047857' }}>Zihninizi dinlendirmek için harika bir an!</Text>
-                </LinearGradient>
+                <View style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'white', borderRadius: 16, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.05)' : '#e2e8f0' }}>
+                  <CheckCircle2 size={32} color="#10b981" />
+                  <Text style={{ fontSize: 16, fontWeight: '900', color: isDark ? 'white' : '#0f172a', marginTop: 12, marginBottom: 4 }}>Görev Yok 🎉</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#64748b' }}>Seçili gün için planlanmış bir ödev bulunmuyor.</Text>
+                </View>
               )}
             </View>
           </View>
-        ) : (
-          /* ── List View ── */
-          <View style={{ gap: 10 }}>
-            {pendingTasks.length === 0 ? (
-              <LinearGradient
-                colors={isDark ? ['#064e3b', '#065f46'] : ['#ecfdf5', '#d1fae5']}
-                style={{ padding: 36, borderRadius: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(52,211,153,0.25)' }}
-              >
-                <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(16,185,129,0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
-                  <CheckCircle2 size={30} color="#34d399" />
-                </View>
-                <Text style={{ fontSize: 16, fontWeight: '900', color: isDark ? 'white' : '#065f46', marginBottom: 6 }}>Tüm görevler tamam! 🎉</Text>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: isDark ? 'rgba(255,255,255,0.6)' : '#047857' }}>Müthiş bir iş çıkardınız!</Text>
-              </LinearGradient>
-            ) : (
-              pendingTasks.map((task, idx) => {
-                const theme = categoryThemes[task.subject] || categoryThemes['Diğer'];
-                const IconComponent = theme.icon;
-                const overdue = isPast(task.dueDateObj) && !isToday(task.dueDateObj);
-                return (
-                  <Animated.View key={task.id} entering={FadeInDown.delay(idx * 50).springify()}>
-                    <TouchableOpacity
-                      onPress={() => {
-                        if (task.type === 'test') router.push({ pathname: '/exam-detail', params: { id: task.id } });
-                        else if (task.planId) router.push({ pathname: '/plan-detail', params: { id: task.planId } });
-                        else if ((task as any).bookId && (task as any).testId) router.push({ pathname: '/book-test-solver', params: { bookId: (task as any).bookId, testId: (task as any).testId, assignmentId: task.id } });
-                        else Alert.alert("Ödevi Tamamla", "Bu ödevi tamamlandı olarak işaretlemek ister misiniz?", [{ text: "İptal", style: "cancel" }, { text: "Tamamla", onPress: () => handleCompleteStudy(task.id, 'assigned') }]);
-                      }}
-                      activeOpacity={0.75}
-                      style={{
-                        backgroundColor: cardBg,
-                        borderRadius: 20,
-                        borderWidth: 1,
-                        borderColor: overdue ? '#ef444430' : cardBorder,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        overflow: 'hidden',
-                        shadowColor: theme.color,
-                        shadowOffset: { width: 0, height: 4 },
-                        shadowOpacity: isDark ? 0.12 : 0.07,
-                        shadowRadius: 12,
-                        elevation: 3,
-                      }}
-                    >
-                      {/* Left accent bar */}
-                      <View style={{ width: 4, alignSelf: 'stretch', backgroundColor: overdue ? '#ef4444' : theme.color, borderTopLeftRadius: 20, borderBottomLeftRadius: 20 }} />
-
-                      {/* Icon */}
-                      <View style={{ margin: 14, width: 44, height: 44, borderRadius: 14, backgroundColor: theme.color + '18', alignItems: 'center', justifyContent: 'center' }}>
-                        <IconComponent size={20} color={theme.color} />
-                      </View>
-
-                      {/* Content */}
-                      <View style={{ flex: 1, paddingVertical: 14, paddingRight: 4 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                          <View style={{ backgroundColor: theme.color + '20', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
-                            <Text style={{ fontSize: 9, fontWeight: '900', color: theme.color, textTransform: 'uppercase', letterSpacing: 0.6 }}>{task.subject}</Text>
-                          </View>
-                          {overdue && (
-                            <View style={{ backgroundColor: '#ef444420', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
-                              <Text style={{ fontSize: 9, fontWeight: '900', color: '#ef4444' }}>GECİKTİ</Text>
-                            </View>
-                          )}
-                        </View>
-                        <Text style={{ fontSize: 13, fontWeight: '800', color: textMain, marginBottom: 6 }} numberOfLines={1}>{task.title}</Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                            <CalendarIcon size={10} color={textMuted} />
-                            <Text style={{ fontSize: 10, fontWeight: '700', color: textSub }}>{task.dueDateStr}</Text>
-                          </View>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                            <Timer size={10} color={textMuted} />
-                            <Text style={{ fontSize: 10, fontWeight: '700', color: textSub }}>{task.durationMinutes} dk</Text>
-                          </View>
-                        </View>
-                      </View>
-
-                      {/* Arrow */}
-                      <View style={{ paddingRight: 14 }}>
-                        <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: theme.color + '15', alignItems: 'center', justifyContent: 'center' }}>
-                          <ChevronRight size={15} color={theme.color} />
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  </Animated.View>
-                );
-              })
-            )}
-          </View>
         )}
-      </Animated.View>
+      </View>
     );
   };
 
   const renderSubjectProgress = () => {
     if (!selectedStudent || subjectStats.length === 0) return null;
+
+    // Renk eşiği yardımcısı
+    const rateColor = (rate: number) => {
+      if (rate >= 75) return '#10b981';
+      if (rate >= 50) return '#f59e0b';
+      return '#f43f5e';
+    };
+
     return (
-      <View style={{ marginBottom: isTabletLandscape ? 0 : 28 }}>
-        <View style={{ paddingHorizontal: isTabletLandscape ? 0 : 20, marginBottom: 12 }}>
-          <Text style={{ fontSize: 14, fontWeight: '900', color: textSub, textTransform: 'uppercase', letterSpacing: 0.8 }}>Ders İlerlemeleri</Text>
+      <View style={{ paddingHorizontal: isTabletLandscape ? 0 : 20, marginBottom: isTabletLandscape ? 24 : 28 }}>
+        {/* Başlık + link */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <Text style={{ fontSize: 14, fontWeight: '900', color: textSub, textTransform: 'uppercase', letterSpacing: 0.8 }}>Ders Başarıları</Text>
+          <TouchableOpacity onPress={() => router.push({ pathname: '/education-stats', params: { studentId: selectedStudent.id } })} activeOpacity={0.7}>
+            <Text style={{ fontSize: 11, fontWeight: '800', color: '#6366f1' }}>Tümünü Gör →</Text>
+          </TouchableOpacity>
         </View>
-        
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: isTabletLandscape ? 0 : 20, gap: 12 }}>
+
+        <View style={{ gap: 10 }}>
           {subjectStats.map((stat, idx) => {
             const theme = categoryThemes[stat.subject] || categoryThemes['Diğer'];
             const Icon = theme.icon;
+            const barColor = rateColor(stat.rate);
+            const detail = subjectDetailStats[stat.subject] || { total: 0, correct: 0, incorrect: 0 };
+            const blank = Math.max(0, detail.total - detail.correct - detail.incorrect);
+
             return (
               <TouchableOpacity
                 key={idx}
                 onPress={() => router.push({ pathname: '/education-stats', params: { studentId: selectedStudent.id } })}
                 activeOpacity={0.85}
                 style={{
-                  width: 150,
                   backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#ffffff',
-                  borderRadius: 24,
-                  padding: 16,
+                  borderRadius: 20,
+                  padding: 14,
                   borderWidth: 1,
-                  borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)',
-                  shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 16
+                  borderColor: isDark ? 'rgba(255,255,255,0.08)' : `${theme.color}22`,
+                  shadowColor: theme.color,
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 8,
+                  elevation: 2,
                 }}
               >
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                  <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: `${theme.color}15`, alignItems: 'center', justifyContent: 'center' }}>
-                     <Icon size={18} color={theme.color} />
+                {/* Üst satır: ikon + ders adı + yüzde rozeti */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                  <LinearGradient
+                    colors={[`${theme.color}30`, `${theme.color}15`]}
+                    style={{ width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <Icon size={20} color={theme.color} />
+                  </LinearGradient>
+
+                  <Text style={{ flex: 1, fontSize: 14, fontWeight: '900', color: textMain }} numberOfLines={1}>{stat.subject}</Text>
+
+                  {/* Başarı rozeti */}
+                  <View style={{
+                    backgroundColor: `${barColor}18`,
+                    borderRadius: 12,
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                    borderWidth: 1,
+                    borderColor: `${barColor}40`,
+                  }}>
+                    <Text style={{ fontSize: 13, fontWeight: '900', color: barColor }}>%{stat.rate}</Text>
                   </View>
-                  <Text style={{ fontSize: 15, fontWeight: '900', color: theme.color }}>%{stat.rate}</Text>
                 </View>
-                <Text style={{ fontSize: 13, fontWeight: '900', color: textMain }} numberOfLines={1}>{stat.subject}</Text>
-                <View style={{ height: 5, backgroundColor: isDark ? '#1e1e30' : '#f1f5f9', borderRadius: 3, marginTop: 10, overflow: 'hidden' }}>
-                  <View style={{ width: `${stat.rate}%`, height: '100%', backgroundColor: theme.color, borderRadius: 3 }} />
+
+                {/* Progress bar — üç renkli: doğru/yanlış/boş */}
+                <View style={{ height: 8, backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9', borderRadius: 4, overflow: 'hidden', flexDirection: 'row', marginBottom: 8 }}>
+                  {detail.total > 0 && <>
+                    <View style={{ width: `${(detail.correct / detail.total) * 100}%`, height: '100%', backgroundColor: '#10b981' }} />
+                    <View style={{ width: `${(detail.incorrect / detail.total) * 100}%`, height: '100%', backgroundColor: '#f43f5e' }} />
+                    <View style={{ width: `${(blank / detail.total) * 100}%`, height: '100%', backgroundColor: isDark ? '#334155' : '#cbd5e1' }} />
+                  </>}
+                </View>
+
+                {/* D / Y / B sayaçları */}
+                <View style={{ flexDirection: 'row', gap: 14, flexWrap: 'wrap' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#10b981' }} />
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: textSub }}>{detail.correct} Doğru</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#f43f5e' }} />
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: textSub }}>{detail.incorrect} Yanlış</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: isDark ? '#334155' : '#cbd5e1' }} />
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: textSub }}>{blank} Boş</Text>
+                  </View>
                 </View>
               </TouchableOpacity>
             );
           })}
-        </ScrollView>
+        </View>
       </View>
     );
   };
@@ -1241,107 +1477,86 @@ export default function EducationScreen() {
   const renderLearningPaths = () => {
     if (assignmentsByBook.length === 0) return null;
     return (
-      <View style={{ paddingHorizontal: isTabletLandscape ? 0 : 20 }}>
-        <View style={{ marginBottom: 12 }}>
-          <Text style={{ fontSize: 14, fontWeight: '900', color: textSub, textTransform: 'uppercase', letterSpacing: 0.8 }}>Çalışma Haritaları</Text>
+      <Animated.View entering={FadeInDown.delay(400).springify()} style={{ paddingHorizontal: isTabletLandscape ? 0 : 20, marginBottom: 30 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <BookOpen size={20} color="#6366f1" />
+          <Text style={{ fontSize: 18, fontWeight: '900', color: isDark ? 'white' : '#0f172a' }}>Çalışma Planları</Text>
         </View>
 
-        <View style={{ gap: 10 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} snapToInterval={296} decelerationRate="fast" contentContainerStyle={{ gap: 16, paddingRight: 20 }}>
           {assignmentsByBook.map(book => {
             const progress = Math.round((book.completed / book.total) * 100);
-            const isExpanded = expandedPlans.has(book.id);
-            const pending = book.assignments.filter(a => a.status !== 'completed');
-            const completed = book.assignments.filter(a => a.status === 'completed');
-
+            
             return (
-              <View key={book.id} style={{ backgroundColor: cardBg, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: cardBorder }}>
-                {/* Header */}
-                <TouchableOpacity
-                  onPress={() => togglePlan(book.id)}
-                  activeOpacity={0.8}
-                  style={{ padding: 12, flexDirection: 'row', alignItems: 'center' }}
-                >
-                  <View style={{ flex: 1, marginRight: 12 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '800', color: textMain, marginBottom: 4 }} numberOfLines={1}>{book.title}</Text>
-                    
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Text style={{ fontSize: 9, fontWeight: '800', color: textSub, textTransform: 'uppercase' }}>
-                        {book.completed}/{book.total} Konu
-                      </Text>
-                      <View style={{ flex: 1, height: 4, backgroundColor: isDark ? '#1e1e30' : '#f1f5f9', borderRadius: 2, marginHorizontal: 8, overflow: 'hidden' }}>
-                        <View style={{ height: '100%', backgroundColor: progress === 100 ? '#10b981' : '#6366f1', borderRadius: 2, width: `${progress}%` }} />
-                      </View>
-                      <Text style={{ fontSize: 10, fontWeight: '900', color: progress === 100 ? '#10b981' : '#6366f1' }}>%{progress}</Text>
-                    </View>
+              <View key={book.id} style={{ 
+                width: 280, 
+                backgroundColor: isDark ? '#0f172a' : 'white', 
+                borderRadius: 20, 
+                padding: 16,
+                borderWidth: 1, 
+                borderColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.05,
+                shadowRadius: 4,
+                elevation: 2,
+              }}>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <View style={{ flex: 1, paddingRight: 12 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '900', color: isDark ? 'white' : '#0f172a', marginBottom: 4 }} numberOfLines={2}>{book.title}</Text>
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: '#64748b' }}>{book.subject}</Text>
                   </View>
-                  
-                  <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: isDark ? '#1e1e30' : '#f1f5f9', alignItems: 'center', justifyContent: 'center' }}>
-                    {isExpanded ? <ChevronUp size={14} color={textSub} /> : <ChevronDown size={14} color={textSub} />}
+                  <View style={{ 
+                    width: 36, 
+                    height: 36, 
+                    borderRadius: 10, 
+                    backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : '#e0e7ff', 
+                    alignItems: 'center', 
+                    justifyContent: 'center' 
+                  }}>
+                    <BookCopy size={16} color="#6366f1" />
                   </View>
-                </TouchableOpacity>
+                </View>
 
-                {/* Timeline Path Nodes */}
-                {isExpanded && (
-                  <View style={{ backgroundColor: isDark ? '#0b0b13' : '#f8fafc', borderTopWidth: 1, borderTopColor: cardBorder, paddingHorizontal: 14, paddingVertical: 6 }}>
-                    {pending.length > 0 && (
-                      <View style={{ marginBottom: completed.length > 0 ? 8 : 0 }}>
-                        <Text style={{ fontSize: 9, fontWeight: '900', color: textSub, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 6, marginBottom: 4 }}>Sıradaki Konular</Text>
-                        {pending.map((a, idx) => (
-                          <TouchableOpacity
-                            key={a.id}
-                            onPress={() => handleCompleteStudy(a.id, a.status)}
-                            activeOpacity={0.7}
-                            style={{ 
-                              flexDirection: 'row', 
-                              alignItems: 'center', 
-                              paddingVertical: 8,
-                              borderBottomWidth: idx === pending.length - 1 ? 0 : 1,
-                              borderBottomColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'
-                            }}
-                          >
-                            <View style={{ width: 18, height: 18, borderRadius: 5, borderWidth: 1.5, borderColor: '#6366f1', alignItems: 'center', justifyContent: 'center', marginRight: 10, backgroundColor: cardBg }} />
-                            <View style={{ flex: 1 }}>
-                              <Text style={{ fontSize: 12, fontWeight: '700', color: textMain }} numberOfLines={1}>{a.topic}</Text>
-                              <Text style={{ fontSize: 8, fontWeight: '600', color: textSub, marginTop: 1 }}>
-                                {a.subject} {a.dueDate ? `• ${format(safeParseDate(a.dueDate), 'dd MMM', { locale: tr })}` : ''}
-                              </Text>
-                            </View>
-                          </TouchableOpacity>
-                        ))}
+                <View style={{ marginBottom: 16 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#cbd5e1' : '#475569' }}>İlerleme</Text>
+                    <Text style={{ fontSize: 11, fontWeight: '900', color: '#6366f1' }}>%{progress}</Text>
+                  </View>
+                  <View style={{ height: 6, backgroundColor: isDark ? '#1e293b' : '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
+                    <View style={{ height: '100%', width: `${progress}%`, backgroundColor: '#6366f1', borderRadius: 3 }} />
+                  </View>
+                </View>
+
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9', paddingTop: 12 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b' }}>{book.total - book.completed} konu kaldı</Text>
+                  <TouchableOpacity onPress={() => togglePlan(book.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: isDark ? '#1e293b' : '#f8fafc', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: isDark ? 'white' : '#0f172a' }}>Detaylar</Text>
+                    <ChevronRight size={14} color={isDark ? 'white' : '#0f172a'} />
+                  </TouchableOpacity>
+                </View>
+                
+                {/* Expanded State is simpler now since we are in a horizontal list, maybe just navigate to details page? 
+                    For now, keep it compatible with existing togglePlan logic by expanding downwards if needed, but horizontal lists are hard to expand downwards.
+                    We will just show the pending items inline if expanded. */}
+                {expandedPlans.has(book.id) && (
+                  <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9', paddingTop: 12 }}>
+                    {book.assignments.filter(a => a.status !== 'completed').slice(0, 3).map((a, idx) => (
+                      <View key={a.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#6366f1' }} />
+                        <Text style={{ fontSize: 11, fontWeight: '600', color: isDark ? '#cbd5e1' : '#475569', flex: 1 }} numberOfLines={1}>{a.topic}</Text>
                       </View>
-                    )}
-                    {completed.length > 0 && (
-                      <View style={{ marginBottom: 6 }}>
-                        <Text style={{ fontSize: 9, fontWeight: '900', color: textSub, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 6, marginBottom: 4 }}>Tamamlananlar</Text>
-                        {completed.map((a, idx) => (
-                          <TouchableOpacity
-                            key={a.id}
-                            onPress={() => handleCompleteStudy(a.id, a.status)}
-                            activeOpacity={0.7}
-                            style={{ 
-                              flexDirection: 'row', 
-                              alignItems: 'center', 
-                              paddingVertical: 8,
-                              opacity: 0.5,
-                              borderBottomWidth: idx === completed.length - 1 ? 0 : 1,
-                              borderBottomColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'
-                            }}
-                          >
-                            <View style={{ width: 18, height: 18, borderRadius: 5, backgroundColor: '#10b981', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
-                              <Check size={10} color="white" />
-                            </View>
-                            <Text style={{ fontSize: 12, fontWeight: '700', color: textSub, textDecorationLine: 'line-through', flex: 1 }} numberOfLines={1}>{a.topic}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
+                    ))}
+                    <TouchableOpacity onPress={() => router.push({ pathname: '/plan-detail', params: { id: book.id } })} style={{ marginTop: 4, paddingVertical: 6, alignItems: 'center', backgroundColor: isDark ? 'rgba(99,102,241,0.1)' : '#e0e7ff', borderRadius: 8 }}>
+                       <Text style={{ fontSize: 11, fontWeight: '800', color: '#6366f1' }}>Tümünü Gör</Text>
+                    </TouchableOpacity>
                   </View>
                 )}
               </View>
             );
           })}
-        </View>
-      </View>
+        </ScrollView>
+      </Animated.View>
     );
   };
 
@@ -1349,94 +1564,130 @@ export default function EducationScreen() {
     <View style={{ flex: 1, backgroundColor: bg }}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* ── PREMIUM HERO HEADER (gamified: avatar + greeting + streak + level/XP) ── */}
+      {/* ── MODERN COMPACT HEADER ── */}
       <Animated.View entering={FadeInDown.springify()}>
-        <LinearGradient
-          colors={isDark ? ['#0f0c29', '#302b63', '#24243e'] : ['#2563EB', '#7C3AED']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={{ paddingTop: insets.top + 12, paddingBottom: 20, paddingHorizontal: 20, borderBottomLeftRadius: 32, borderBottomRightRadius: 32 }}
+        <View
+          style={{ 
+            paddingTop: insets.top + 8, 
+            paddingBottom: 16, 
+            paddingHorizontal: 20, 
+            backgroundColor: isDark ? 'rgba(15,23,42,0.95)' : 'rgba(255,255,255,0.95)',
+            borderBottomWidth: 1,
+            borderBottomColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+          }}
         >
-          {/* Top Row: back button + avatar/greeting + streak */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={{ width: 42, height: 42, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 21, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }}
-            >
-              <ChevronLeft size={22} color="white" />
-            </TouchableOpacity>
+          {/* Ana satır */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            {/* Sol: Back + Avatar + Greeting */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+              <TouchableOpacity
+                onPress={() => router.back()}
+                style={{ 
+                  width: 36, 
+                  height: 36, 
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', 
+                  borderRadius: 12, 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  borderWidth: 1,
+                  borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+                }}
+              >
+                <ChevronLeft size={18} color={isDark ? 'white' : '#1f2937'} strokeWidth={2.5} />
+              </TouchableOpacity>
 
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, justifyContent: 'center' }}>
-              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)' }}>
-                <Text style={{ fontSize: 18 }}>{selectedStudent?.avatar || '👧'}</Text>
-              </View>
-              <View>
-                <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 10, fontWeight: '700' }}>Merhaba,</Text>
-                <Text style={{ color: 'white', fontSize: 16, fontWeight: '900', letterSpacing: -0.3 }} numberOfLines={1}>
-                  {selectedStudent?.name || 'Öğrenci'} 👋
-                </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={{ 
+                  width: 36, 
+                  height: 36, 
+                  borderRadius: 10, 
+                  backgroundColor: '#6366f1', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  borderWidth: 2,
+                  borderColor: '#8b5cf6',
+                }}>
+                  <Text style={{ fontSize: 16 }}>{selectedStudent?.avatar || '👧'}</Text>
+                </View>
+                <View>
+                  <Text style={{ 
+                    color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)', 
+                    fontSize: 9, 
+                    fontWeight: '700',
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.5,
+                  }}>Merhaba</Text>
+                  <Text style={{ 
+                    color: isDark ? 'white' : '#1f2937', 
+                    fontSize: 15, 
+                    fontWeight: '900', 
+                    letterSpacing: -0.3 
+                  }} numberOfLines={1}>
+                    {selectedStudent?.name || 'Öğrenci'}
+                  </Text>
+                </View>
               </View>
             </View>
 
-            {/* Streak indicator */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 7 }}>
-              <Flame size={18} color="#fb923c" />
-              <View>
-                <Text style={{ fontSize: 8, color: 'rgba(255,255,255,0.75)', fontWeight: '700' }}>Seri</Text>
-                <Text style={{ fontSize: 12, color: 'white', fontWeight: '900' }}>{streak} gün</Text>
+            {/* Sağ: Streak + Action buttons */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {/* Compact streak */}
+              <View style={{ 
+                flexDirection: 'row', 
+                alignItems: 'center', 
+                gap: 4, 
+                backgroundColor: isDark ? 'rgba(251,146,60,0.15)' : 'rgba(251,146,60,0.1)', 
+                borderRadius: 10, 
+                paddingHorizontal: 8, 
+                paddingVertical: 4,
+                borderWidth: 1,
+                borderColor: 'rgba(251,146,60,0.2)',
+              }}>
+                <Flame size={14} color="#fb923c" />
+                <Text style={{ 
+                  fontSize: 11, 
+                  color: '#fb923c', 
+                  fontWeight: '900',
+                  letterSpacing: -0.2,
+                }}>{streak}</Text>
+              </View>
+
+              {/* Action buttons */}
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                <TouchableOpacity
+                  onPress={() => setIsOfflineModalOpen(true)}
+                  style={{ 
+                    width: 32, 
+                    height: 32, 
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', 
+                    borderRadius: 10, 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    borderWidth: 1,
+                    borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+                  }}
+                >
+                  <Plus size={16} color={isDark ? 'white' : '#1f2937'} strokeWidth={2.5} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => router.push('/assign-test')}
+                  style={{ 
+                    width: 32, 
+                    height: 32, 
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', 
+                    borderRadius: 10, 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    borderWidth: 1,
+                    borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+                  }}
+                >
+                  <Settings size={14} color={isDark ? 'white' : '#1f2937'} strokeWidth={2.5} />
+                </TouchableOpacity>
               </View>
             </View>
           </View>
-
-          {/* Motivational quote */}
-          <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: '700', fontStyle: 'italic', textAlign: 'center', marginBottom: 14 }}>
-            {todayQuote}
-          </Text>
-
-          {/* Header action buttons */}
-          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginBottom: studentMembers.length > 0 ? 12 : 0 }}>
-            <TouchableOpacity
-              onPress={() => setIsOfflineModalOpen(true)}
-              style={{ width: 38, height: 38, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 19, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }}
-            >
-              <Plus size={18} color="white" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => router.push('/assign-test')}
-              style={{ width: 38, height: 38, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 19, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }}
-            >
-              <Settings size={16} color="white" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Student Selector */}
-          {studentMembers.length > 0 && (
-            <View style={{ flexDirection: 'row', gap: 10, backgroundColor: 'rgba(0,0,0,0.22)', padding: 6, borderRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }}>
-              {studentMembers.map(student => {
-                const active = selectedStudent?.id === student.id;
-                return (
-                  <TouchableOpacity
-                    key={student.id}
-                    onPress={() => setSelectedStudent(student)}
-                    activeOpacity={0.85}
-                    style={{
-                      flexDirection: 'row', alignItems: 'center', gap: 8,
-                      paddingHorizontal: 14, paddingVertical: 7,
-                      borderRadius: 16,
-                      backgroundColor: active ? 'rgba(255,255,255,0.95)' : 'transparent',
-                    }}
-                  >
-                    <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: active ? '#6366f1' : 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}>
-                      <Text style={{ fontSize: 13 }}>{student.avatar || '👧'}</Text>
-                    </View>
-                    <Text style={{ fontSize: 13, fontWeight: '900', color: active ? '#4f46e5' : 'white' }}>{student.name}</Text>
-                    {active && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#34d399' }} />}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
-        </LinearGradient>
+        </View>
       </Animated.View>
 
       <ScrollView 
@@ -1452,19 +1703,135 @@ export default function EducationScreen() {
         }
       >
         {isTabletLandscape ? (
-          <View style={{ flexDirection: 'row', paddingHorizontal: 20, gap: 20 }}>
-            {/* Left Column - width 40% */}
-            <View style={{ width: '40%', gap: 20 }}>
+          <View style={{ flexDirection: 'row', paddingHorizontal: 24, gap: 24, paddingTop: 20 }}>
+            
+            {/* ── Sol Panel: Ana Dashboard (60%) ── */}
+            <View style={{ flex: 6 }}>
+              {/* Hero Focus Card */}
+              {renderFocusBar()}
+              
+              {/* Stats Grid - 4'lü dashboard kartları */}
               {renderStatsGrid()}
-              {renderQuickActions()}
+              
+              {/* Real Weekly Scheduler for Tablet (Tasks in Focus) */}
+              {renderWeeklyScheduler()}
+              
+              {/* Subject Progress - Kompakt görünüm */}
+              <View style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'white', borderRadius: 20, padding: 20, marginBottom: 20, borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 3 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#8b5cf620', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#8b5cf630' }}>
+                      <Target size={18} color="#8b5cf6" />
+                    </View>
+                    <View>
+                      <Text style={{ fontSize: 14, fontWeight: '900', color: isDark ? '#ffffff' : '#1f2937' }}>Ders Başarım</Text>
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)' }}>Güncel durumun</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity 
+                    onPress={() => router.push('/education-results')} 
+                    style={{ backgroundColor: isDark ? 'rgba(139,92,246,0.15)' : 'rgba(139,92,246,0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(139,92,246,0.2)' }}
+                  >
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#8b5cf6' }}>Detay →</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                {/* Mini ders kartları - 2x2 grid */}
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                  {Object.entries(subjectDetailStats).slice(0, 4).map(([subject, stats], idx) => {
+                    const theme = categoryThemes[subject] || categoryThemes['Diğer'];
+                    const rate = stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0;
+                    const Icon = theme.icon;
+                    
+                    return (
+                      <View 
+                        key={subject}
+                        style={{ 
+                          width: '48%', 
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.7)', 
+                          borderRadius: 16, 
+                          padding: 14,
+                          borderWidth: 1,
+                          borderColor: isDark ? 'rgba(255,255,255,0.08)' : `${theme.color}15`,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 10,
+                        }}
+                      >
+                        <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: `${theme.color}18`, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: `${theme.color}30` }}>
+                          <Icon size={14} color={theme.color} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 11, fontWeight: '900', color: isDark ? '#ffffff' : '#1f2937' }} numberOfLines={1}>{subject}</Text>
+                          <Text style={{ fontSize: 9, fontWeight: '700', color: rate >= 75 ? '#10b981' : rate >= 50 ? '#f59e0b' : '#ef4444' }}>
+                            %{rate}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
             </View>
             
-            {/* Right Column - flex 1 */}
-            <View style={{ flex: 1, gap: 20 }}>
-              {renderFocusBar()}
-              {renderWeeklyScheduler()}
-              {renderSubjectProgress()}
-              {renderLearningPaths()}
+            {/* ── Sağ Panel: Side Widgets (40%) ── */}
+            <View style={{ flex: 4 }}>
+              {/* Quick Actions */}
+              {renderQuickActions()}
+              
+              {/* Recent Results Widget */}
+              {renderRecentResults()}
+              
+              {/* Compact Weekly Scheduler replaced by real one in the left panel */}
+              
+              {/* Learning Paths - Kompakt liste */}
+              <View style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'white', borderRadius: 20, padding: 18, marginBottom: 20, borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 3 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#10b98120', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#10b98130' }}>
+                      <BookOpen size={16} color="#10b981" />
+                    </View>
+                    <Text style={{ fontSize: 12, fontWeight: '900', color: isDark ? '#ffffff' : '#1f2937' }}>Öğrenim Yolu</Text>
+                  </View>
+                  <TouchableOpacity style={{ backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.1)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(16,185,129,0.2)' }}>
+                    <Text style={{ fontSize: 9, fontWeight: '800', color: '#10b981' }}>Tümü →</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                {/* Kompakt kitap listesi */}
+                <View style={{ gap: 8 }}>
+                  {trackedBooks.slice(0, 3).map((book, idx) => (
+                    <TouchableOpacity 
+                      key={book.id}
+                      style={{ 
+                        flexDirection: 'row', 
+                        alignItems: 'center', 
+                        gap: 10,
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                        borderRadius: 12,
+                        padding: 10,
+                        borderWidth: 1,
+                        borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                      }}
+                    >
+                      <View style={{ width: 24, height: 24, borderRadius: 6, backgroundColor: '#6366f118', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#6366f125' }}>
+                        <BookOpen size={12} color="#6366f1" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '800', color: isDark ? '#ffffff' : '#1f2937' }} numberOfLines={1}>{book.title}</Text>
+                        <Text style={{ fontSize: 8, fontWeight: '600', color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)' }}>
+                          {book.totalTests} test • %{Math.round((book.completedTests / book.totalTests) * 100)}
+                        </Text>
+                      </View>
+                      <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: book.completedTests === book.totalTests ? '#10b981' : '#f59e0b', alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ fontSize: 7, fontWeight: '900', color: 'white' }}>
+                          {book.completedTests === book.totalTests ? '✓' : book.completedTests}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
             </View>
           </View>
         ) : (

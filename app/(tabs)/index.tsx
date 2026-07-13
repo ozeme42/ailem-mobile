@@ -732,11 +732,27 @@ export default function DashboardScreen() {
                           <Text style={{ color: c1, fontWeight: '800', fontSize: 10 }}>İlerleme</Text>
                         </TouchableOpacity>
                       </View>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <View style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.07)', overflow: 'hidden' }}>
-                          <LinearGradient colors={[c1, c2]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ height: '100%', borderRadius: 3, width: `${goal.overallProgress || 0}%` as any }} />
+                      <View style={{ gap: 12 }}>
+                        {goal.currentSection && (
+                          <View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                              <Text style={{ color: textMain, fontWeight: '800', fontSize: 11, flex: 1, marginRight: 8 }} numberOfLines={1}>{goal.currentSection.title}</Text>
+                              <Text style={{ color: c1, fontWeight: '800', fontSize: 10 }}>{goal.currentSection.completedUnits || 0}/{goal.currentSection.sectionTotalUnits} {goal.unitName}</Text>
+                            </View>
+                            <View style={{ height: 6, borderRadius: 3, backgroundColor: isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.07)', overflow: 'hidden' }}>
+                              <LinearGradient colors={[c1, c2]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ height: '100%', borderRadius: 3, width: `${((goal.currentSection.completedUnits || 0) / (goal.currentSection.sectionTotalUnits || 1)) * 100}%` as any }} />
+                            </View>
+                          </View>
+                        )}
+                        <View>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <Text style={{ color: textMuted, fontWeight: '800', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.5 }}>Genel İlerleme</Text>
+                            <Text style={{ color: textMuted, fontWeight: '800', fontSize: 9 }}>%{Math.round(goal.overallProgress || 0)}</Text>
+                          </View>
+                          <View style={{ height: 4, borderRadius: 2, backgroundColor: isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.07)', overflow: 'hidden' }}>
+                            <View style={{ height: '100%', backgroundColor: '#10b981', borderRadius: 2, width: `${goal.overallProgress || 0}%` as any }} />
+                          </View>
                         </View>
-                        <Text style={{ color: c1, fontWeight: '900', fontSize: 12, width: 34, textAlign: 'right' }}>%{Math.round(goal.overallProgress || 0)}</Text>
                       </View>
                       {goal.assignee && (
                         <Text style={{ color: textMuted, fontSize: 10, fontWeight: '600', marginTop: 6 }}>👤 {goal.assignee.name}</Text>

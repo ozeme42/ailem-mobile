@@ -1,36 +1,38 @@
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Image, TextInput, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useEffect, useState, useMemo } from 'react';
-import { 
-  ChevronLeft, 
-  ChevronRight,
-  Target, 
-  FileText, 
-  CalendarDays, 
-  CheckCircle, 
-  PenTool,
-  CheckCircle2, 
-  XCircle, 
-  AlertCircle, 
-  Award, 
-  Clock, 
-  ChevronDown, 
-  ChevronUp, 
-  BookOpen,
-  Image as ImageIcon,
-  Save,
-  MessageSquareText,
-  HelpCircle,
-  Check,
-} from 'lucide-react-native';
-import { useRouter, Stack, useLocalSearchParams } from 'expo-router';
-import { onTestsUpdate, onSinglePracticeExamUpdate, safeParseDate, updateTest, onTestQuestionsUpdate } from '../lib/dataService';
-import { Test, PracticeExam } from '../lib/data';
-import { format } from 'date-fns';
+import { format, isPast, isToday } from 'date-fns';
 import { tr } from 'date-fns/locale';
-import { useColorScheme } from 'nativewind';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
+import {
+    AlertCircle,
+    Award,
+    BookMarked,
+    BookOpen,
+    CalendarDays,
+    CalendarX,
+    CheckCircle,
+    CheckCircle2,
+    ChevronDown,
+    ChevronLeft,
+    ChevronRight,
+    ChevronUp,
+    FileText,
+    Hash,
+    HelpCircle,
+    Image as ImageIcon,
+    MessageSquareText,
+    Play,
+    Save,
+    Target,
+    Timer,
+    XCircle
+} from 'lucide-react-native';
+import { useColorScheme } from 'nativewind';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Image, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PracticeExam, Test } from '../lib/data';
+import { onSinglePracticeExamUpdate, onTestQuestionsUpdate, onTestsUpdate, safeParseDate, updateTest } from '../lib/dataService';
 
 const C = {
   BLUE:   '#3B82F6',
@@ -49,6 +51,7 @@ export default function ExamDetailScreen() {
   const { id } = useLocalSearchParams();
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const insets = useSafeAreaInsets();
 
   const [test, setTest] = useState<Test | null>(null);
   const [examDetails, setExamDetails] = useState<PracticeExam | null>(null);
@@ -401,82 +404,230 @@ export default function ExamDetailScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950">
+    <View style={{ flex: 1, backgroundColor: isDark ? '#0f172a' : '#f8fafc' }}>
       <Stack.Screen options={{ headerShown: false }} />
-      
-      {/* HEADER NAVBAR */}
-      <View className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex-row justify-between items-center shadow-sm z-10">
-        <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-full">
-           <ChevronLeft size={24} color="#64748b" />
-        </TouchableOpacity>
-        <Text className="text-xl font-bold text-slate-900 dark:text-white">Sınav Raporu</Text>
-        <View className="w-10 h-10" />
-      </View>
+
+      {/* ── MODERN GRADIENT HEADER ── */}
+      <LinearGradient
+        colors={isDark ? ['#1e1b4b', '#312e81', '#4c1d95'] : ['#4f46e5', '#7c3aed', '#9333ea']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ paddingTop: insets.top + 10, paddingBottom: 20, paddingHorizontal: 20 }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={{ width: 40, height: 40, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }}
+          >
+            <ChevronLeft size={20} color="white" strokeWidth={2.5} />
+          </TouchableOpacity>
+          <Text style={{ color: 'white', fontSize: 16, fontWeight: '900', letterSpacing: -0.3 }}>
+            {isFinished ? 'Sınav Raporu' : 'Sınav Detayı'}
+          </Text>
+          <View style={{ width: 40 }} />
+        </View>
+      </LinearGradient>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
-         
-         {/* EXAM TITLE CARD */}
-         <View className="p-4">
-           <View className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 items-center mb-2 mt-2">
-              <View className="w-20 h-20 bg-blue-50 dark:bg-blue-900/30 rounded-full items-center justify-center mb-4 border-4 border-white dark:border-slate-800 shadow-sm">
-                 <FileText size={40} color="#3b82f6" />
-              </View>
-              <Text className="text-2xl font-bold text-slate-900 dark:text-white text-center mb-2">{test.title}</Text>
-              <View className="bg-blue-100 dark:bg-blue-900/30 px-4 py-1.5 rounded-full mb-4">
-                 <Text className="text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider text-xs">{test.subject || 'Genel'}</Text>
+
+        {!isFinished && (
+          <>
+            {/* ── HERO BAŞLAMA KARTI ── */}
+            <LinearGradient
+              colors={isDark ? ['#1e1b4b', '#312e81', '#1e1b4b'] : ['#4f46e5', '#7c3aed', '#9333ea']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={{ paddingHorizontal: 20, paddingTop: 28, paddingBottom: 36 }}
+            >
+              {/* Ders rozeti */}
+              <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16 }}>
+                <View style={{ backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <BookMarked size={13} color="rgba(255,255,255,0.9)" />
+                  <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 }}>
+                    {test.subject || 'Genel'}
+                  </Text>
+                </View>
               </View>
 
-              {!isFinished && (
-                <TouchableOpacity 
-                   onPress={() => router.push({ pathname: '/test-solver', params: { id: test.id, type: test.sourceType } })}
-                   className="bg-blue-500 w-full flex-row items-center justify-center py-4 rounded-2xl active:scale-[0.98]"
+              {/* Büyük ikon */}
+              <View style={{ alignItems: 'center', marginBottom: 16 }}>
+                <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.25)' }}>
+                  <FileText size={40} color="white" strokeWidth={1.5} />
+                </View>
+              </View>
+
+              {/* Sınav adı */}
+              <Text style={{ color: 'white', fontSize: 22, fontWeight: '900', textAlign: 'center', letterSpacing: -0.5, marginBottom: 6, lineHeight: 28 }}>
+                {test.title}
+              </Text>
+              <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, textAlign: 'center', fontWeight: '600' }}>
+                {test.sourceType ? test.sourceType.toUpperCase() + ' formatı' : 'Sınav'}
+              </Text>
+            </LinearGradient>
+
+            {/* ── 4'lü bilgi kartları ── */}
+            <View style={{ marginTop: -18, marginHorizontal: 20, flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+              {[
+                {
+                  icon: Hash,
+                  label: 'Soru',
+                  value: test.questionCount ? `${test.questionCount}` : '-',
+                  color: '#6366f1',
+                },
+                {
+                  icon: Timer,
+                  label: 'Süre',
+                  value: `${test.durationMinutes || 40} dk`,
+                  color: '#8b5cf6',
+                },
+                {
+                  icon: CalendarDays,
+                  label: 'Atandı',
+                  value: test.assignedDate ? format(safeParseDate(test.assignedDate), 'd MMM', { locale: tr }) : '-',
+                  color: '#06b6d4',
+                },
+                {
+                  icon: CalendarX,
+                  label: 'Bitiş',
+                  value: test.dueDate ? format(safeParseDate(test.dueDate), 'd MMM', { locale: tr }) : '-',
+                  color: (() => {
+                    if (!test.dueDate) return '#94a3b8';
+                    const d = safeParseDate(test.dueDate);
+                    if (isPast(d) && !isToday(d)) return '#ef4444';
+                    if (isToday(d)) return '#f59e0b';
+                    return '#10b981';
+                  })(),
+                },
+              ].map((item, idx) => {
+                const Icon = item.icon;
+                return (
+                  <View
+                    key={idx}
+                    style={{
+                      flex: 1,
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'white',
+                      borderRadius: 16,
+                      paddingVertical: 14,
+                      paddingHorizontal: 8,
+                      alignItems: 'center',
+                      borderWidth: 1,
+                      borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)',
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: 0.08,
+                      shadowRadius: 8,
+                      elevation: 3,
+                    }}
+                  >
+                    <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: `${item.color}18`, alignItems: 'center', justifyContent: 'center', marginBottom: 8, borderWidth: 1, borderColor: `${item.color}25` }}>
+                      <Icon size={16} color={item.color} strokeWidth={2.5} />
+                    </View>
+                    <Text style={{ fontSize: 14, fontWeight: '900', color: item.color, letterSpacing: -0.3, marginBottom: 3 }}>{item.value}</Text>
+                    <Text style={{ fontSize: 9, fontWeight: '700', color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.45)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{item.label}</Text>
+                  </View>
+                );
+              })}
+            </View>
+
+            {/* ── Durum + Detay kartı ── */}
+            <View style={{ marginHorizontal: 20, marginBottom: 16, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'white', borderRadius: 20, padding: 18, borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 }}>
+              <Text style={{ fontSize: 10, fontWeight: '900', color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 14 }}>Sınav Bilgileri</Text>
+
+              {[
+                {
+                  icon: CheckCircle,
+                  label: 'Durum',
+                  value: isFinished ? 'Tamamlandı' : 'Bekliyor',
+                  valueColor: isFinished ? '#10b981' : '#f59e0b',
+                },
+                {
+                  icon: Target,
+                  label: 'Format',
+                  value: (test.sourceType || 'Belirtilmedi').toUpperCase(),
+                  valueColor: '#6366f1',
+                },
+                {
+                  icon: CalendarDays,
+                  label: 'Atanma Tarihi',
+                  value: test.assignedDate ? format(safeParseDate(test.assignedDate), 'd MMMM yyyy', { locale: tr }) : '-',
+                  valueColor: isDark ? '#e2e8f0' : '#1e293b',
+                },
+                ...(test.dueDate ? [{
+                  icon: CalendarX,
+                  label: 'Bitiş Tarihi',
+                  value: format(safeParseDate(test.dueDate), 'd MMMM yyyy', { locale: tr }),
+                  valueColor: (() => {
+                    const d = safeParseDate(test.dueDate);
+                    if (isPast(d) && !isToday(d)) return '#ef4444';
+                    if (isToday(d)) return '#f59e0b';
+                    return '#10b981';
+                  })(),
+                }] : []),
+                ...(test.questionCount ? [{
+                  icon: Hash,
+                  label: 'Soru Sayısı',
+                  value: `${test.questionCount} soru`,
+                  valueColor: isDark ? '#e2e8f0' : '#1e293b',
+                }] : []),
+                {
+                  icon: Timer,
+                  label: 'Süre',
+                  value: `${test.durationMinutes || 40} dakika`,
+                  valueColor: isDark ? '#e2e8f0' : '#1e293b',
+                },
+              ].map((row, idx, arr) => {
+                const Icon = row.icon;
+                return (
+                  <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: idx < arr.length - 1 ? 1 : 0, borderBottomColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.04)', alignItems: 'center', justifyContent: 'center' }}>
+                        <Icon size={15} color={isDark ? 'rgba(255,255,255,0.5)' : '#94a3b8'} />
+                      </View>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: isDark ? 'rgba(255,255,255,0.7)' : '#64748b' }}>{row.label}</Text>
+                    </View>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: row.valueColor }}>{row.value}</Text>
+                  </View>
+                );
+              })}
+            </View>
+
+            {/* ── Büyük Başlama Butonu ── */}
+            <View style={{ marginHorizontal: 20, marginBottom: 24 }}>
+              <TouchableOpacity
+                onPress={() => router.push({ pathname: '/test-solver', params: { id: test.id, type: test.sourceType } })}
+                activeOpacity={0.85}
+              >
+                <LinearGradient
+                  colors={['#4f46e5', '#7c3aed']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={{ borderRadius: 20, paddingVertical: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, shadowColor: '#6366f1', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 16, elevation: 8 }}
                 >
-                   <PenTool size={20} color="white" className="mr-2" />
-                   <Text className="text-white font-bold text-lg">Sınavı Çözmeye Başla</Text>
+                  <Play size={22} color="white" fill="white" />
+                  <Text style={{ color: 'white', fontSize: 17, fontWeight: '900', letterSpacing: -0.3 }}>Sınavı Başlat</Text>
+                  <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
+                    <Text style={{ color: 'white', fontSize: 11, fontWeight: '800' }}>
+                      {test.questionCount ? `${test.questionCount} Soru` : 'Başla'}
+                    </Text>
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+
+              {/* PDF formatıysa ek buton */}
+              {test.sourceType === 'pdf' && (test as any).fileUrl && (
+                <TouchableOpacity
+                  onPress={handleOpenPdf}
+                  activeOpacity={0.85}
+                  style={{ marginTop: 10, backgroundColor: isDark ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.08)', borderRadius: 16, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)' }}
+                >
+                  <FileText size={18} color="#ef4444" />
+                  <Text style={{ color: '#ef4444', fontSize: 14, fontWeight: '800' }}>PDF'i Önizle</Text>
                 </TouchableOpacity>
               )}
-           </View>
-         </View>
-
-         {/* EXAM INFO METRICS */}
-         <View className="px-4 mb-4">
-           <View className="bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-sm border border-slate-100 dark:border-slate-800">
-              <Text className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4 border-b border-slate-100 dark:border-slate-800 pb-2">Sınav Bilgileri</Text>
-              
-              <View className="flex-row items-center justify-between mb-4">
-                 <View className="flex-row items-center">
-                    <CalendarDays size={18} color="#94a3b8" className="mr-3" />
-                    <Text className="text-slate-600 dark:text-slate-350 text-sm font-medium">Atanma Tarihi</Text>
-                 </View>
-                 <Text className="text-slate-800 dark:text-slate-100 text-sm font-bold">
-                   {test.assignedDate ? format(safeParseDate(test.assignedDate), 'd MMMM yyyy', { locale: tr }) : '-'}
-                 </Text>
-              </View>
-
-              <View className="flex-row items-center justify-between mb-4">
-                 <View className="flex-row items-center">
-                    <Target size={18} color="#94a3b8" className="mr-3" />
-                    <Text className="text-slate-600 dark:text-slate-350 text-sm font-medium">Sınav Formatı</Text>
-                 </View>
-                 <Text className="text-slate-800 dark:text-slate-100 text-sm font-bold capitalize">
-                   {test.sourceType || 'Belirtilmedi'}
-                 </Text>
-              </View>
-
-              <View className="flex-row items-center justify-between">
-                 <View className="flex-row items-center">
-                    <CheckCircle size={18} color="#94a3b8" className="mr-3" />
-                    <Text className="text-slate-600 dark:text-slate-350 text-sm font-medium">Durum</Text>
-                 </View>
-                 <Text className={`text-sm font-bold ${isFinished ? 'text-emerald-500' : 'text-amber-500'}`}>
-                   {isFinished ? 'Tamamlandı' : 'Bekliyor'}
-                 </Text>
-              </View>
-           </View>
-         </View>
-
-         {/* EXAM RESULT - ANALYZED RESULTS SCREEN (SAME AS WEB PROJECT) */}
-         {isFinished && (
+            </View>
+          </>
+        )}
+           {isFinished && (
            <View className="px-4 space-y-5">
              
              {/* Bento Stats General Results Card */}
@@ -977,6 +1128,6 @@ export default function ExamDetailScreen() {
          
          <View className="h-10"></View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }

@@ -1,70 +1,63 @@
-import { 
-  View, 
-  Text, 
-  ScrollView, 
-  TouchableOpacity, 
-  ActivityIndicator, 
-  TextInput, 
-  Modal, 
-  Alert,
-  StyleSheet,
-  Dimensions,
-  Platform
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useEffect, useState, useMemo } from 'react';
-import { 
-  onCalendarEventsUpdate, 
-  addCalendarEvent, 
-  updateCalendarEvent, 
-  deleteCalendarEvent,
-  onBillsUpdate,
-  payBill
-} from '../lib/dataService';
-import { CalendarEvent, Bill } from '../lib/data';
-import { 
-  Calendar as CalendarIcon, 
-  Clock, 
-  MapPin, 
-  Plus, 
-  MoreHorizontal, 
-  Search, 
-  ChevronLeft, 
-  ChevronRight, 
-  Trash2, 
-  Edit, 
-  X, 
-  Check, 
-  AlertCircle,
-  Bell
-} from 'lucide-react-native';
-import { 
-  format, 
-  parseISO, 
-  startOfDay, 
-  isBefore, 
-  setDate, 
-  getDate, 
-  addMonths, 
-  getMonth, 
-  addYears, 
-  differenceInDays, 
-  isSameMonth, 
-  isToday, 
-  isSameDay, 
-  startOfMonth, 
-  startOfWeek, 
-  addDays, 
-  addWeeks, 
-  isWithinInterval, 
-  compareAsc, 
-  subMonths,
-  isAfter
+import {
+    addDays,
+    addMonths,
+    addWeeks,
+    addYears,
+    compareAsc,
+    differenceInDays,
+    format,
+    getDate,
+    getMonth,
+    isAfter,
+    isBefore,
+    isSameDay,
+    isSameMonth,
+    isToday,
+    isWithinInterval,
+    parseISO,
+    setDate,
+    startOfDay,
+    startOfMonth,
+    startOfWeek
 } from 'date-fns';
 import { tr } from 'date-fns/locale';
-import { useRouter, Stack } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Stack, useRouter } from 'expo-router';
+import {
+    Bell,
+    Calendar as CalendarIcon,
+    ChevronLeft,
+    ChevronRight,
+    Clock,
+    Edit,
+    MapPin,
+    Plus,
+    Search,
+    Trash2,
+    X
+} from 'lucide-react-native';
+import { useEffect, useMemo, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Bill, CalendarEvent } from '../lib/data';
+import {
+    addCalendarEvent,
+    deleteCalendarEvent,
+    onBillsUpdate,
+    onCalendarEventsUpdate,
+    updateCalendarEvent
+} from '../lib/dataService';
 
 // Theme Configuration
 const THEME = {
@@ -451,63 +444,59 @@ export default function CalendarScreen() {
           ))}
         </View>
 
-        {/* Days cells */}
-        <View className="flex-row flex-wrap">
-          {displayedDaysMonth.map((day, idx) => {
-            const dayEvents = getEventsForDay(day);
-            const isSelected = isSameDay(day, selectedDate);
-            const isCurrentMonth = isSameMonth(day, currentDate);
-            const isDayToday = isToday(day);
-            const hasEvents = dayEvents.length > 0;
+        {/* Days cells — 6 rows × 7 cols */}
+        {Array.from({ length: 6 }).map((_, rowIdx) => (
+          <View key={rowIdx} style={{ flexDirection: 'row' }}>
+            {displayedDaysMonth.slice(rowIdx * 7, rowIdx * 7 + 7).map((day, idx) => {
+              const dayEvents = getEventsForDay(day);
+              const isSelected = isSameDay(day, selectedDate);
+              const isCurrentMonth = isSameMonth(day, currentDate);
+              const isDayToday = isToday(day);
 
-            return (
-              <TouchableOpacity
-                key={idx}
-                onPress={() => {
-                  setSelectedDate(day);
-                  setCurrentDate(day);
-                }}
-                style={[
-                  styles.dayCell,
-                  !isCurrentMonth && { opacity: 0.25 },
-                  isDayToday && !isSelected && { borderColor: THEME.primary, borderWidth: 2, backgroundColor: '#fef3c7' },
-                  isSelected && { backgroundColor: '#fef3c7', borderColor: THEME.primary, borderWidth: 1 }
-                ]}
-              >
-                <Text 
+              return (
+                <TouchableOpacity
+                  key={idx}
+                  onPress={() => {
+                    setSelectedDate(day);
+                    setCurrentDate(day);
+                  }}
                   style={[
-                    styles.dayText,
-                    isDayToday && { color: THEME.primary, fontWeight: 'bold' },
-                    isSelected && { color: THEME.primaryDark, fontWeight: 'bold' }
+                    styles.dayCell,
+                    !isCurrentMonth && { opacity: 0.25 },
+                    isDayToday && !isSelected && { borderColor: THEME.primary, borderWidth: 2, backgroundColor: '#fef3c7' },
+                    isSelected && { backgroundColor: '#fef3c7', borderColor: THEME.primary, borderWidth: 1 }
                   ]}
                 >
-                  {format(day, 'd')}
-                </Text>
+                  <Text
+                    style={[
+                      styles.dayText,
+                      isDayToday && { color: THEME.primary, fontWeight: 'bold' },
+                      isSelected && { color: THEME.primaryDark, fontWeight: 'bold' }
+                    ]}
+                  >
+                    {format(day, 'd')}
+                  </Text>
 
-                {/* Event indicators (dots) */}
-                <View className="flex-row flex-wrap justify-center mt-1 w-full gap-0.5 px-0.5">
-                  {dayEvents.slice(0, 4).map((ev, eIdx) => {
-                    const colors = getEventColors(ev.color, ev.category, ev.isVirtual);
-                    return (
-                      <View 
-                        key={eIdx} 
-                        style={{ 
-                          width: 5, 
-                          height: 5, 
-                          borderRadius: 2.5, 
-                          backgroundColor: colors.text 
-                        }} 
-                      />
-                    );
-                  })}
-                  {dayEvents.length > 4 && (
-                    <Text className="text-[7px] text-slate-400 font-extrabold leading-none">+</Text>
-                  )}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                  {/* Event indicators (dots) */}
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 2, width: '100%', paddingHorizontal: 2, gap: 2 }}>
+                    {dayEvents.slice(0, 4).map((ev, eIdx) => {
+                      const colors = getEventColors(ev.color, ev.category, ev.isVirtual);
+                      return (
+                        <View
+                          key={eIdx}
+                          style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.text }}
+                        />
+                      );
+                    })}
+                    {dayEvents.length > 4 && (
+                      <Text style={{ fontSize: 7, color: '#94a3b8', fontWeight: 'bold', lineHeight: 5 }}>+</Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ))}
       </View>
     );
   };
@@ -1217,7 +1206,7 @@ export default function CalendarScreen() {
 const styles = StyleSheet.create({
   // Month view Grid cell
   dayCell: {
-    width: (Dimensions.get('window').width - 48) / 7,
+    flex: 1,
     aspectRatio: 1,
     borderRadius: 12,
     alignItems: 'center',
